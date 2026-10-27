@@ -17,7 +17,6 @@ import { publicationDeltaPolicy } from "./publication-delta.js";
 import { guardianModel, guardianModelCallBound } from "./model.js";
 import type { GuardianModelCallBound, GuardianReasoningEffort } from "./model.js";
 import { sourceMatches } from "./source.js";
-import { providerQuotaExhausted } from "../models/provider-quota.js";
 import { modelUsageCounts } from "../models/model-usage.js";
 import { collectingCacheDiagnostics } from "../models/cached-instructions.js";
 import type { PromptCacheDiagnostic } from "../models/cached-instructions.js";
@@ -412,13 +411,6 @@ const withheldFromObserver = (
   return through(observe(through(base, restore)), hide);
 };
 
-/**
- * The provider refused the request as over the model's input limit, its context window, by its own
- * code. That is no outage, and the same request fails the same way.
- */
-const overContextWindow = (finite: ModelFailureMetadata) =>
-  finite.code === "context_length_exceeded" || finite.providerCode === "context_length_exceeded";
-
 /** One model call went without a response for the per-call bound, each time it was sent. */
 class ModelCallStalled extends Error {
   override readonly name = "ModelCallStalled";
@@ -630,6 +622,8 @@ const reviewerWithPolicy = (
       let reviewComputationDetail: ReviewFailure["failureDetail"];
       /** The provider refused the review's call for a spent quota. */
       let quotaExhausted = false;
+      /** The model declined the review's request. */
+      let refused = false;
       /** A model call went without a response each time it was sent. */
       let callStalled = false;
       return Effect.tryPromise({
@@ -911,16 +905,19 @@ const reviewerWithPolicy = (
                 catch: (error) => {
                   diagnostics?.failed(privateKind ? error : withheldError(error, leadingPrivate));
                   const finite = (options.failureMetadata ?? modelFailureMetadata)(error);
+                  // A request over the model's input limit is no outage, and the same request
+                  // fails the same way.
+                  const kind = backend.classify(error);
                   failureCode =
                     error instanceof MaxTurnsExceededError
                       ? "TurnLimitExceeded"
                       : callStalled
                         ? "ModelCallStalled"
-                        : overContextWindow(finite)
+                        : kind === "input_too_large"
                           ? "InputTooLarge"
                           : "Unavailable";
-                  quotaExhausted =
-                    providerQuotaExhausted(error) || finite.code === "insufficient_quota";
+                  quotaExhausted = kind === "quota_exhausted";
+                  refused = kind === "refused";
                   reviewComputationDetail =
                     !turn.session && turn.pending.publication === undefined
                       ? failureDetail(
@@ -945,6 +942,7 @@ const reviewerWithPolicy = (
                     code: failureCode,
                     reviewPhase: "review_computation",
                     ...(quotaExhausted ? { modelQuotaExhausted: true } : {}),
+                    ...(refused ? { modelRefused: true } : {}),
                     ...(reviewComputationDetail === undefined
                       ? {}
                       : { failureDetail: reviewComputationDetail }),
@@ -983,6 +981,7 @@ const reviewerWithPolicy = (
                 ...(failurePhase === "review_computation" && quotaExhausted
                   ? { modelQuotaExhausted: true }
                   : {}),
+                ...(failurePhase === "review_computation" && refused ? { modelRefused: true } : {}),
                 ...(failurePhase === "review_computation" && reviewComputationDetail !== undefined
                   ? { failureDetail: reviewComputationDetail }
                   : {}),

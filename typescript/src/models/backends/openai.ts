@@ -3,14 +3,22 @@ import type { ModelProvider, ModelRequest } from "@openai/agents";
 import { StaticCompactionPolicy, compaction } from "@openai/agents/sandbox";
 import { guardianReviewSettings } from "../../guardian/openai-input.js";
 import { guardianCompaction } from "../../guardian/session.js";
-import type { AgentShaping, ModelBackend, ModelIntent, ModelRole } from "../backend.js";
+import type {
+  AgentShaping,
+  ModelBackend,
+  ModelFailureKind,
+  ModelIntent,
+  ModelRole,
+} from "../backend.js";
 import {
   instructionsAsMessages,
   prewarmInstructions,
   withCacheComparison as withConversationComparison,
 } from "../cached-instructions.js";
 import type { InstructionsMessage } from "../cached-instructions.js";
+import { modelFailureMetadata } from "../model-failure.js";
 import { lunaModel, solModel } from "../models.js";
+import { providerQuotaExhausted } from "../provider-quota.js";
 import {
   withAllowedTools,
   withCacheComparison,
@@ -167,6 +175,18 @@ const agents: Record<ModelRole, (intent: ModelIntent) => AgentShaping> = {
   outcome_reviewer: outcomeReviewerAgent,
 };
 
+/** OpenAI's codes for a spent quota, a rejected key and a request over the context window. */
+const classify = (error: unknown): ModelFailureKind | undefined => {
+  const finite = modelFailureMetadata(error);
+  if (providerQuotaExhausted(error) || finite.code === "insufficient_quota")
+    return "quota_exhausted";
+  if (finite.httpStatus === 401 || finite.code === "invalid_api_key") return "authentication";
+  // Over the model's input limit, its context window: the same request fails the same way.
+  if ([finite.code, finite.providerCode].includes("context_length_exceeded"))
+    return "input_too_large";
+  return undefined;
+};
+
 /** The Responses API, through whatever provider the Runner resolved. */
 export const openAIBackend = (): ModelBackend => ({
   id: "openai",
@@ -174,6 +194,7 @@ export const openAIBackend = (): ModelBackend => ({
   agent: (role, intent) => agents[role](intent),
   provider,
   features: { backgroundCompaction: true, cacheDiagnostics: true, effortChangeKeepsCache: true },
+  classify,
   // The prewarm keeps only the instructions' messages: the minter prewarms through its own
   // request's layout instead (`intent.prewarm`).
   prewarm: (role, intent, base = sdkDefault(), run) =>

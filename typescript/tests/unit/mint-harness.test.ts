@@ -569,11 +569,12 @@ it.each([
   },
 );
 
-// A review request over Guardian's model input limit fails the same way when resubmitted, so it
-// ends the attempt at once instead of offering resubmissions until the outage budget runs out.
+// A review request over Guardian's model input limit, or one its model declined, fails the same
+// way when resubmitted, so it ends the attempt at once instead of offering resubmissions until the
+// outage budget runs out.
 it.each([
   {
-    kind: "execution review",
+    kind: "an execution review over the input limit",
     exampleFirst: false,
     call: (turn: MintTurn) => turn.actions.execute({ ...execution, purpose: "explore" }),
     failure: new MintFailure({
@@ -584,7 +585,7 @@ it.each([
     }),
   },
   {
-    kind: "publication review",
+    kind: "a publication review over the input limit",
     exampleFirst: true,
     call: (turn: MintTurn) => turn.actions.finish(publication),
     failure: new MintFailure({
@@ -593,8 +594,20 @@ it.each([
       reviewPhase: "review_computation",
     }),
   },
+  {
+    kind: "a declined execution review",
+    exampleFirst: false,
+    call: (turn: MintTurn) => turn.actions.execute({ ...execution, purpose: "explore" }),
+    failure: new MintFailure({
+      code: "ReviewUnavailable",
+      reviewFailure: "Unavailable",
+      modelOutage: "refused",
+      reviewPhase: "review_computation",
+      reviewDispatch: "not_sent",
+    }),
+  },
 ])(
-  "ends the attempt on a $kind over the model's input limit, without offering a retry",
+  "ends the attempt on $kind, without offering a retry",
   async ({ exampleFirst, call, failure }) => {
     let calls = 0;
     const failing = () =>
@@ -609,7 +622,7 @@ it.each([
           const ended: unknown = JSON.parse(yield* call(turn));
           expect(ended).toMatchObject({
             status: "review_unavailable",
-            reviewFailure: "InputTooLarge",
+            reviewFailure: failure.reviewFailure,
           });
           expect(ended).not.toHaveProperty("retryable");
           expect(turn.isComplete()).toBe(true);

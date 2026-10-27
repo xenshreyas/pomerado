@@ -259,9 +259,10 @@ export class MintFailure extends Data.TaggedError("MintFailure")<{
    * through the host's retries (or the run's own record could not be stored), `quota_exhausted`
    * when it refused the call because the account's quota is spent, which no retry gets past. Only
    * this marks a model failure as a host failure; spent model calls, the SDK turn ceiling or an
-   * expired deadline end the attempt as the agent's own outcome.
+   * expired deadline end the attempt as the agent's own outcome. `refused` when the model
+   * declined the request, which the same request meets again.
    */
-  readonly modelOutage?: "unavailable" | "quota_exhausted";
+  readonly modelOutage?: "unavailable" | "quota_exhausted" | "refused";
   /** The attempt spent the model calls it may make: the build ends `turn_budget_spent`. */
   readonly turnBudgetSpent?: true;
   /**
