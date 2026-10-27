@@ -31,7 +31,7 @@ GITLEAKS=/path/to/gitleaks bash tools/ci-scan.sh secrets
 - `typescript/tests/unit/` holds Vitest tests, and `typescript/tests/browser/` holds Playwright tests with local fixture sites.
 - `tools/` holds build helpers and the CI scans.
 - `docs/` holds guides. [docs/how-it-works.md](docs/how-it-works.md) lists each module.
-- In code, OpenAI model IDs are set only in `typescript/src/models/models.ts`. A unit test enforces it.
+- In code, OpenAI and Claude model IDs are set only in `typescript/src/models/models.ts`. A unit test enforces it.
 
 ## Rules
 

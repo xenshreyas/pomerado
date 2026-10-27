@@ -6,7 +6,7 @@ This guide installs Pomerado, connects it to your MCP client and builds a first 
 
 - macOS or Linux.
 - Node 24.21 or a later Node 24 release. `node --version` should print `v24.21.0` or higher, below `v25`.
-- An OpenAI API key for an account that can use `gpt-6.1-sol` and `gpt-6-luna`. Pomerado calls OpenAI models to build and review integrations. Your agent can run on any model.
+- An OpenAI API key for an account that can use `gpt-6.1-sol` and `gpt-6-luna`, or an Anthropic API key for an account that can use `claude-opus-5-5`. Pomerado calls those models to build and review integrations. Your agent can run on any model.
 - An MCP client that runs local stdio servers.
 
 ## Install
@@ -40,7 +40,30 @@ Pomerado is a standard MCP stdio server.
 - `mint` starts the server that builds integrations.
 - `--root` is the folder where Pomerado saves them. It defaults to `./integrations` in the server's working folder, and clients pick that folder differently. Use an absolute path.
 - The server needs `OPENAI_API_KEY` in its environment. Many clients pass servers only a short list of variables, so check your client below.
+- To mint with Claude, see [Model backends](#model-backends).
 - Starting the server and listing its tools launches no browser and calls no model.
+
+## Model backends
+
+Pomerado mints on OpenAI by default. To mint on Claude, add `--model-backend anthropic` after `mint` in the server's arguments, or set `POMERADO_MODEL_BACKEND=anthropic` in its environment, and install the Anthropic SDK where npm can find it beside Pomerado.
+
+```sh
+npx -y -p pomerado -p @anthropic-ai/sdk pomerado-mcp --help
+```
+
+With `npx`, add `-p @anthropic-ai/sdk` after `-p pomerado` in your client's command too. The server then needs `ANTHROPIC_API_KEY` in place of `OPENAI_API_KEY`, passed the same way in [Client settings](#client-settings), or a profile signed in with `ant auth login`. A mint on Claude stops at startup with a message naming the key, or the install command, when either is missing. Running an integration needs neither, whichever model minted it.
+
+| | OpenAI (`openai`, the default) | Claude (`anthropic`) |
+| --- | --- | --- |
+| Models | `gpt-6.1-sol` builds, `gpt-6-luna` reviews | `claude-opus-5-5` builds and reviews |
+| Key | `OPENAI_API_KEY` | `ANTHROPIC_API_KEY`, or an `ant auth login` profile |
+| Instructions cache | 12 hours, and a host may write it ahead of the first job | 1 hour, written by the first request |
+| Long builds | Compacted while tools run, and by the provider at a size threshold | Compacted by the provider at the same threshold only |
+| Guardian at another effort | Keeps the review conversation's cache | Reads the review conversation again, uncached |
+| Cache reports | Each request reports its cache reuse | Not reported |
+| Declined requests | Not told apart from other model failures | A refusal ends the mint as declined, without a retry |
+
+Claude support is new. Pomerado's prompts and skills were tuned on OpenAI models, so a Claude build may take more turns or stop sooner on some sites. An integration minted on either backend runs the same way, and a saved build resumes only on the backend that started it.
 
 ## Client settings
 
@@ -187,7 +210,7 @@ Your agent then calls `get_job`. Each call waits up to 30 seconds and returns th
 To use the integration, follow the steps in the README's [Use your integration](../README.md#use-your-integration).
 
 1. Open `example_reader/README.md` and run the add command for your client.
-2. Skip the key setup. Running an integration makes no model request, so only minting needs `OPENAI_API_KEY`.
+2. Skip the key setup. Running an integration makes no model request, so only minting needs a model key.
 3. Reload your client and ask your agent to use `example_reader`.
 
 The call returns JSON that matches the output schema in `example_reader/pomerado.json`. A call that fails returns a job with `"status": "failed"`, a `code`, `write_status`, `possible_commit` and `retry`. When `possible_commit` is true, read the site back before calling again.
@@ -232,10 +255,10 @@ Pomerado owns its browser context on an attached server. Closing a job closes th
 
 ## Troubleshooting
 
-- A mint ends with `"build": "incomplete"` and the summary "Minting stopped before publication". One cause is a server without `OPENAI_API_KEY`, which ends the mint this way within seconds. Check [Client settings](#client-settings) for your client.
-- An error says "Model provider authentication failed". OpenAI rejected the key the server sent. Check that the key is current.
-- A mint ends with a summary saying the account's model quota is spent. Add credit or raise the limit on your OpenAI account, then mint again.
-- A job fails with "Model provider quota or rate limit was reached". Your OpenAI account hit a rate limit or quota. Wait, or check its limits, then try again.
+- A mint ends with `"build": "incomplete"` and the summary "Minting stopped before publication". One cause is a server without its model key, which ends the mint this way within seconds. Check [Client settings](#client-settings) for your client.
+- An error says "Model provider authentication failed". The model provider rejected the key the server sent. Check that the key is current.
+- A mint ends with a summary saying the account's model quota is spent. Add credit or raise the limit on your OpenAI or Anthropic account, then mint again.
+- A job fails with "Model provider quota or rate limit was reached". Your model provider account hit a rate limit or quota. Wait, or check its limits, then try again.
 - A mint fails at once with "Operation failed. Check the local model, browser and integration configuration." An integration call fails the same way with "Operation failed. Check the local browser and integration configuration." One cause is a missing Chromium. Run `npx -y -p pomerado playwright install chromium`.
 - The client reports a closed connection or a startup timeout. Check `node --version`, run `npx -y -p pomerado pomerado-mcp --help` once to fill npm's cache, and raise the client's startup timeout.
 - `pomerado-mcp` exits at once with no output. Versions 0.1.2 and earlier don't start through `npx` or a global install. Use `pomerado@latest` in the `-p` argument.
