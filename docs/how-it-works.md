@@ -356,7 +356,10 @@ await Effect.runPromise(
 
 - `makeInputAsker` adapts your own chat callback. The callback receives an `InputRequest` and returns raw answers keyed by question ID.
 - `makePomeradoMcp` and `makeIntegrationMcp` expose the two local MCP modes as library functions. Their Effect scopes own cleanup.
-- `minterProvider`, `guardianProvider` and `outcomeReviewerProvider` take Agents SDK `ModelProvider` implementations in place of the default OpenAI provider.
+- `modelBackend` picks the model backend every agent runs on: `openAIBackend()` from `pomerado/core/models/backends/openai`, the default, or `anthropicBackend()` from `pomerado/core/models/backends/anthropic`, which runs on Claude through `@anthropic-ai/sdk` and takes an optional `client`. The terminal and MCP CLIs choose one with `--model-backend` or `POMERADO_MODEL_BACKEND`, and [Model backends](getting-started.md#model-backends) lists what differs.
+  - A backend owns every part of a request that differs between providers. The agents state each request's needs in neutral terms, and the backend says which of OpenAI's extras it honors: compaction while tools run, writing the cache ahead of the first job, cache reports, and an effort change that keeps the cache. An agent skips the ones its backend lacks.
+  - On Claude, the instructions and the host's static context stay in the system prompt behind a one-hour cache breakpoint. Each request replays the conversation exactly as Claude returned it, thinking included, and only appends to it, so the minter's note after a compaction goes after the next turn's tool results. Claude's server compacts at the same thresholds, and a refusal ends the attempt as declined.
+- `minterProvider`, `guardianProvider` and `outcomeReviewerProvider` take Agents SDK `ModelProvider` implementations in place of the default OpenAI provider. A backend wraps them, and the Claude backend uses them as they are.
 - Importing a core module starts no browser, MCP listener or workspace.
 
 The package has these entry points.
@@ -411,6 +414,7 @@ The package has these entry points.
 | `typescript/src/inputs/` | Input validation, terminal collection and per-session secrets |
 | `typescript/src/execution/` | Local workspaces, child processes and native Playwright adapter |
 | `typescript/src/standalone/` | Local library, terminal and MCP composition |
+| `typescript/src/models/` | Model backends for OpenAI and Claude, model IDs, usage and failure kinds |
 | `typescript/src/hosted-features.ts` | Features another host supplies that the local minter ignores and its Guardian doesn't count on |
 | `typescript/src/mcp/schema.ts` | Pure schema adapter shared with the production MCP |
 | `typescript/authoring/` | Shared prompts and examples, with sections a host can replace |

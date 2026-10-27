@@ -41,7 +41,7 @@ The workspace root is `/workspace`. Paths below are relative to it.
 - In maintenance only: `captures/original/index.json` and, when the observations say so,
   `failures/original/manifest.json` (`reference/maintenance.md`).
 
-Edit only `src/`, `explore/`, `test/`, `scratch/` and the two notes files, with the native
+Edit only `src/`, `explore/`, `test/`, `scratch/` and the two notes files, with the
 `apply_patch` editor. Read files with `read_source`; an offline command sees only a copy of
 the source files, never captures.
 

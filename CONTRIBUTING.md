@@ -28,7 +28,7 @@ corepack pnpm build
 
 On Linux, add `--with-deps` after `install` if Chromium's system libraries are missing.
 
-To try your build in an MCP client, point the client at the built entry with Node. Use absolute paths. `node -p 'process.execPath'` prints the Node path, and the server needs `OPENAI_API_KEY` in its environment to mint.
+To try your build in an MCP client, point the client at the built entry with Node. Use absolute paths. `node -p 'process.execPath'` prints the Node path, and the server needs `OPENAI_API_KEY` in its environment to mint, or `ANTHROPIC_API_KEY` with `--model-backend anthropic`.
 
 ```json
 {
