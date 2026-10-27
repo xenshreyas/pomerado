@@ -1,6 +1,7 @@
 import { Agent, RunContext, RunState, Runner, tool, Usage } from "@openai/agents";
 import { Cause, Duration, Effect, Exit } from "effect";
 import { guardianCompactionTokens, makeGuardianSession } from "../guardian/session.js";
+import { SnapshotBackendMismatch, backendTag } from "../models/backend.js";
 import type { ModelBackend, ModelIntent } from "../models/backend.js";
 import { openAIBackend } from "../models/backends/openai.js";
 import { modelUsageCounts } from "../models/model-usage.js";
@@ -167,7 +168,12 @@ const turnFailure = (error: unknown, operation: string) =>
     ? error
     : new MintFailure({
         code: "Unavailable",
-        failureDetail: failureDetail("mint_host_dependency_failed", { operation, error }),
+        failureDetail: failureDetail(
+          error instanceof SnapshotBackendMismatch
+            ? "model_backend_mismatch"
+            : "mint_host_dependency_failed",
+          { operation, error },
+        ),
       });
 
 /** The reviewer's needs from its model, the same for every turn and the prewarm. */
@@ -259,6 +265,7 @@ export const makeOutcomeReviewer = (
               : { initial: turn.conversation.initial }),
             save: turn.conversation.save,
             interruption: reviewerInterruption,
+            backend: backendTag(backend, "outcome_reviewer"),
           });
           const agent = new Agent({
             ...reviewerAgent(backend, intent),

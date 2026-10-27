@@ -169,6 +169,7 @@ const agents: Record<ModelRole, (intent: ModelIntent) => AgentShaping> = {
 
 /** The Responses API, through whatever provider the Runner resolved. */
 export const openAIBackend = (): ModelBackend => ({
+  id: "openai",
   model: (role) => (role === "minter" ? solModel : lunaModel),
   agent: (role, intent) => agents[role](intent),
   provider,

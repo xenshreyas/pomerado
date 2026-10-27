@@ -18,6 +18,7 @@ export const scriptedBackend = (
     effortChangeKeepsCache: options.features !== false,
   };
   const backend: ModelBackend = {
+    id: "scripted",
     model: (role) => `scripted-${role}`,
     agent: (_role, intent) => {
       agents.push(intent);

@@ -1,5 +1,6 @@
 import type { ModelResponse } from "@openai/agents";
 import { Schema, type Effect } from "effect";
+import { BackendTag } from "../models/backend.js";
 import type { MintFailure } from "./contracts.js";
 
 const ToolCall = Schema.Struct({
@@ -14,9 +15,13 @@ const ToolResult = Schema.Struct({
   state: Schema.Literal("started", "returned"),
   result: Schema.optional(Schema.Unknown),
 });
-/** Private executable state. This is never a diagnostic event or a model-visible artifact. */
+/**
+ * Private executable state. This is never a diagnostic event or a model-visible artifact. A
+ * snapshot from a backend other than OpenAI is version 2, so a release that reads only version 1
+ * refuses it.
+ */
 export const MintAgentSnapshot = Schema.Struct({
-  version: Schema.Literal(1),
+  version: Schema.Literal(1, 2),
   sdkVersion: Schema.Literal("0.18.0"),
   sdkState: Schema.String,
   modelCalls: Schema.NonNegativeInt,
@@ -28,6 +33,8 @@ export const MintAgentSnapshot = Schema.Struct({
   historyOffset: Schema.optional(Schema.NonNegativeInt),
   response: Schema.optional(Schema.Unknown),
   tools: Schema.Array(ToolResult),
+  /** The backend and model that wrote it; absent in a snapshot from before backend tags. */
+  backend: Schema.optional(BackendTag),
 });
 export type MintAgentSnapshot = typeof MintAgentSnapshot.Type;
 export interface MintAgentRecovery {
@@ -54,6 +61,11 @@ interface MintRecoveryBoundary {
       readonly finalsWithoutTool: number;
       /** Stored as the snapshot's `historyOffset`. */
       readonly historyOffset: number;
+      /**
+       * Stored as the snapshot's `backend`, with the version `snapshotVersion` gives it, so a
+       * snapshot from another backend than OpenAI is version 2.
+       */
+      readonly backend: BackendTag;
     },
     invoke: Effect.Effect<ModelResponse, E>,
   ) => Effect.Effect<ModelResponse, E | MintFailure>;

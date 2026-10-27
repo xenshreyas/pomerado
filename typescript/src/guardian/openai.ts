@@ -21,6 +21,7 @@ import { providerQuotaExhausted } from "../models/provider-quota.js";
 import { modelUsageCounts } from "../models/model-usage.js";
 import { collectingCacheDiagnostics } from "../models/cached-instructions.js";
 import type { PromptCacheDiagnostic } from "../models/cached-instructions.js";
+import { backendTag } from "../models/backend.js";
 import type { ModelBackend, ModelIntent } from "../models/backend.js";
 import { openAIBackend } from "../models/backends/openai.js";
 import { failureDetail } from "../runtime/failure-detail.js";
@@ -619,6 +620,7 @@ const reviewerWithPolicy = (
   backend: ModelBackend,
   options: GuardianModelOptions,
 ): OpenAIReviewer => ({
+  backend: backendTag(backend, "guardian"),
   prewarm: () => prewarmShared(shared, backend, options),
   run: (turn) =>
     Effect.suspend(() => {

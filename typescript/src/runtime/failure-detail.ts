@@ -136,6 +136,8 @@ const failureSubCauses = [
   "mint_recovery_unconfirmed",
   // The model provider refused a mint's call because the account's quota is spent (mint/openai.ts)
   "model_quota_exhausted",
+  // A snapshot an agent was asked to resume on another model backend than wrote it
+  "model_backend_mismatch",
   // Input request answers and views: the request's protected handoff was deleted or had
   // expired, so the request closed while it was read.
   "input_request_handoff_closed",

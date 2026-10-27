@@ -15,11 +15,16 @@ import {
   latestConfigurationEffort,
 } from "../models/cached-instructions.js";
 import { leadingPrivateAfter } from "./review-layout.js";
+import { BackendTag, backendMismatch, snapshotVersion } from "../models/backend.js";
 import type { BackendFeatures, ModelIntent } from "../models/backend.js";
 
-/** Private continuation state; complete original exchanges remain in protected model records. */
+/**
+ * Private continuation state; complete original exchanges remain in protected model records. A
+ * conversation on a backend other than OpenAI is version 2, so a release that reads only version
+ * 1 refuses it.
+ */
 export const GuardianSessionSnapshot = Schema.Struct({
-  version: Schema.Literal(1),
+  version: Schema.Literal(1, 2),
   sdkVersion: Schema.Literal("0.18.0"),
   history: Schema.Array(Schema.Unknown),
   incomplete: Schema.Boolean,
@@ -43,6 +48,8 @@ export const GuardianSessionSnapshot = Schema.Struct({
    * also after a takeover.
    */
   latestResponseId: Schema.optional(Schema.String),
+  /** The backend and model that wrote it; absent in a snapshot from before backend tags. */
+  backend: Schema.optional(BackendTag),
 });
 export type GuardianSessionSnapshot = typeof GuardianSessionSnapshot.Type;
 interface GuardianReasoningReport {
@@ -66,6 +73,11 @@ export interface GuardianSessionOptions {
    * as a message before the next request, and kept in the history like any other item.
    */
   readonly resumeNote?: string;
+  /**
+   * The backend and model the conversation runs on, which its snapshots record. A restored
+   * snapshot from another backend is refused with `SnapshotBackendMismatch`.
+   */
+  readonly backend?: BackendTag;
 }
 
 const guardianInterruption = {
@@ -280,11 +292,21 @@ export const makeGuardianSession = (options: GuardianSessionOptions) => {
   let resumeNote = options.resumeNote;
   /** Compactions this process made or observed; each replaces the context Guardian sees. */
   let compactions = 0;
-  let current: GuardianSessionSnapshot = options.initial ?? {
-    version: 1,
-    sdkVersion: "0.18.0",
-    history: [],
-    incomplete: false,
+  const tag = options.backend;
+  const restored = options.initial;
+  const mismatch =
+    tag === undefined || restored === undefined
+      ? undefined
+      : backendMismatch(restored.backend, tag);
+  if (mismatch !== undefined) throw mismatch;
+  let current: GuardianSessionSnapshot = {
+    ...(restored ?? {
+      version: 1,
+      sdkVersion: "0.18.0",
+      history: [],
+      incomplete: false,
+    }),
+    ...(tag === undefined ? {} : { version: snapshotVersion(tag), backend: tag }),
   };
   const history = (): AgentInputItem[] =>
     current.history.map((item) => protocol.ModelItem.parse(item));

@@ -1,4 +1,5 @@
 import { makeGuardianSession } from "./session.js";
+import type { BackendTag } from "../models/backend.js";
 import type { GuardianSession, GuardianSessionOptions } from "./session.js";
 import { QuestionDecision } from "./question.js";
 import { anchorQuotedFindings, decodePublicationDecision } from "./publication.js";
@@ -673,6 +674,8 @@ const uncorrectedDecodeRetries = 1;
 
 export interface Reviewer {
   readonly run: (turn: ReviewTurn) => Effect.Effect<unknown, ReviewFailure>;
+  /** The backend and model its reviews run on, which a session's snapshots record. */
+  readonly backend?: BackendTag;
   /** Host retry for outages. Absent, a failed review returns at once. */
   readonly retry?: ReviewRetry;
 }
@@ -1016,7 +1019,13 @@ export const makeGuardian = (
         Effect.catchAllCause(() => Effect.void),
         Effect.asVoid,
       ));
-  const session = continuity === undefined ? undefined : makeGuardianSession(continuity);
+  const session =
+    continuity === undefined
+      ? undefined
+      : makeGuardianSession({
+          ...(reviewer.backend === undefined ? {} : { backend: reviewer.backend }),
+          ...continuity,
+        });
   /** Decode failures whose review sent the decode follow-up: never reviewed again. */
   const correctedDecodes = new WeakSet<ReviewFailure>();
   /** The latest publication round of a Guardian without a session, which keeps it here instead. */
