@@ -2,8 +2,9 @@ import type { AgentInputItem, ModelRequest, SerializedTool } from "@openai/agent
 import { describe, expect, it } from "vitest";
 import type { ModelIntent } from "../../src/models/backend.js";
 import { anthropicRequest } from "../../src/models/backends/anthropic/request.js";
+import { claudeMinterModel } from "../../src/models/models.js";
 
-const model = "claude-opus-5-5";
+const model = claudeMinterModel;
 const intent: ModelIntent = { effort: "medium", continuity: true, parallelToolCalls: true };
 const readPage: SerializedTool = {
   type: "function",

@@ -193,7 +193,12 @@ export const openAIBackend = (): ModelBackend => ({
   model: (role) => (role === "minter" ? solModel : lunaModel),
   agent: (role, intent) => agents[role](intent),
   provider,
-  features: { backgroundCompaction: true, cacheDiagnostics: true, effortChangeKeepsCache: true },
+  features: {
+    backgroundCompaction: true,
+    cacheDiagnostics: true,
+    effortChangeKeepsCache: true,
+    noteAfterToolResults: false,
+  },
   classify,
   // The prewarm keeps only the instructions' messages: the minter prewarms through its own
   // request's layout instead (`intent.prewarm`).

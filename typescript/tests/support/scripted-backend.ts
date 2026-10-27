@@ -26,6 +26,8 @@ export const scriptedBackend = (
     backgroundCompaction: options.features !== false,
     cacheDiagnostics: options.features !== false,
     effortChangeKeepsCache: options.features !== false,
+    // The note's place, as OpenAI's requests have it; no feature to turn off.
+    noteAfterToolResults: false,
   };
   const backend: ModelBackend = {
     id: "scripted",

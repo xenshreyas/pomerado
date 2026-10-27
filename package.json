@@ -496,6 +496,11 @@
       "import": "./dist/typescript/src/models/backend.js",
       "default": "./dist/typescript/src/models/backend.js"
     },
+    "./core/models/backends/anthropic": {
+      "types": "./dist/typescript/src/models/backends/anthropic/index.d.ts",
+      "import": "./dist/typescript/src/models/backends/anthropic/index.js",
+      "default": "./dist/typescript/src/models/backends/anthropic/index.js"
+    },
     "./core/models/backends/openai": {
       "types": "./dist/typescript/src/models/backends/openai.d.ts",
       "import": "./dist/typescript/src/models/backends/openai.js",
