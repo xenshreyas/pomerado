@@ -28,6 +28,9 @@ const outputItem = (
   block: Anthropic.Beta.BetaContentBlock,
   model: string,
 ): protocol.OutputModelItem => {
+  // Claude binds a thinking block to the conversation before it, so each block is kept as it
+  // came and replayed unchanged; the SDK's fields are for running tools and the transcript.
+  const providerData = { backend: "anthropic", model, block };
   switch (block.type) {
     case "text":
       return {
@@ -35,6 +38,7 @@ const outputItem = (
         role: "assistant",
         status: "completed",
         content: [{ type: "output_text", text: block.text }],
+        providerData,
       };
     case "tool_use":
       return {
@@ -43,15 +47,14 @@ const outputItem = (
         name: block.name,
         arguments: JSON.stringify(block.input),
         status: "completed",
+        providerData,
       };
-    // Claude binds a thinking block to the conversation before it, so the block itself is kept and
-    // replayed unchanged; the readable summary is for the transcript only.
     case "thinking":
     case "redacted_thinking":
       return {
         type: "reasoning",
         content: block.type === "thinking" ? [{ type: "input_text", text: block.thinking }] : [],
-        providerData: { backend: "anthropic", model, block },
+        providerData,
       };
     default:
       throw new Error(`Claude returned a ${block.type} block, which the backend does not read`);

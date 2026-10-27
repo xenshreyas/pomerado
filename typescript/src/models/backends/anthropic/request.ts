@@ -26,13 +26,20 @@ const text = (part: { readonly type: string; readonly text?: string }) => {
   return { type: "text" as const, text: part.text };
 };
 
-/** A reasoning item this backend wrote holds the thinking block exactly as Claude returned it. */
+/**
+ * An item this backend wrote holds Claude's block exactly as it was returned. Claude binds each
+ * thinking block to the bytes of the conversation before it, `tool_use` input and text included,
+ * so a stored block replays as it is; an item from elsewhere is rebuilt from its fields.
+ */
 const storedBlock = (providerData: Record<string, unknown> | undefined): Block | undefined =>
   providerData?.["backend"] === "anthropic" ? (providerData["block"] as Block) : undefined;
 
 const turnOf = (item: AgentInputItem): Turn | undefined => {
+  const stored = storedBlock(item.providerData);
   if (!("type" in item) || item.type === "message") {
     if (!("role" in item)) return undefined;
+    if (item.role === "assistant" && stored !== undefined)
+      return { role: "assistant", blocks: [stored] };
     const content =
       typeof item.content === "string" ? [{ type: "text", text: item.content }] : item.content;
     return { role: item.role, blocks: content.map(text) };
@@ -42,7 +49,12 @@ const turnOf = (item: AgentInputItem): Turn | undefined => {
       return {
         role: "assistant",
         blocks: [
-          { type: "tool_use", id: item.callId, name: item.name, input: JSON.parse(item.arguments) },
+          stored ?? {
+            type: "tool_use",
+            id: item.callId,
+            name: item.name,
+            input: JSON.parse(item.arguments),
+          },
         ],
       };
     case "function_call_result":
@@ -59,10 +71,8 @@ const turnOf = (item: AgentInputItem): Turn | undefined => {
           },
         ],
       };
-    case "reasoning": {
-      const block = storedBlock(item.providerData);
-      return block === undefined ? undefined : { role: "assistant", blocks: [block] };
-    }
+    case "reasoning":
+      return stored === undefined ? undefined : { role: "assistant", blocks: [stored] };
     default:
       return undefined;
   }

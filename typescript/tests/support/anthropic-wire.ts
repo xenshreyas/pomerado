@@ -47,7 +47,12 @@ const blockEvents = (block: Block, index: number): object[] => {
     case "tool_use":
       return [
         start({ ...block, input: {} }),
-        delta({ type: "input_json_delta", partial_json: JSON.stringify(block["input"]) }),
+        // A string input is the JSON text exactly as Claude sends it.
+        delta({
+          type: "input_json_delta",
+          partial_json:
+            typeof block["input"] === "string" ? block["input"] : JSON.stringify(block["input"]),
+        }),
         stop,
       ];
     default:
