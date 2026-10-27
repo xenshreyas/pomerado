@@ -65,6 +65,7 @@ export interface ScriptedMessage {
   readonly stopReason?: string;
   readonly stopDetails?: object;
   readonly usage?: object;
+  readonly inputTransformations?: readonly object[];
 }
 
 /** A Messages API stream that ends with `content` and the given stop. */
@@ -73,6 +74,7 @@ export const claudeStream = ({
   stopReason = "end_turn",
   stopDetails,
   usage = { input_tokens: 10, output_tokens: 5 },
+  inputTransformations = [],
 }: ScriptedMessage) => {
   const events = [
     {
@@ -94,6 +96,7 @@ export const claudeStream = ({
       type: "message_delta",
       delta: { stop_reason: stopReason, stop_sequence: null, stop_details: stopDetails ?? null },
       usage,
+      input_transformations: inputTransformations,
     },
     { type: "message_stop" },
   ];
@@ -119,16 +122,18 @@ export const claudeWire = (
   intentOf: (request: ModelRequest) => ModelIntent = () => mediumIntent,
 ) => {
   const bodies: Record<string, unknown>[] = [];
+  const betas: (string | null)[] = [];
   const client = new Anthropic({
     apiKey: "synthetic-key",
     baseURL: "https://api.anthropic.test",
     maxRetries: 0,
     fetch: async (_url, init) => {
       bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      betas.push(new Headers(init?.headers).get("anthropic-beta"));
       const reply = replies.shift();
       if (reply === undefined) throw new Error("No scripted reply left");
       return reply();
     },
   });
-  return { model: makeAnthropicModel({ client, model: claudeModel, intentOf }), bodies };
+  return { model: makeAnthropicModel({ client, model: claudeModel, intentOf }), bodies, betas };
 };

@@ -63,9 +63,14 @@ describe("anthropicRequest", () => {
         },
       ],
       messages: [{ role: "user", content: [{ type: "text", text: "Mint the integration" }] }],
-      thinking: { type: "adaptive", display: "summarized" },
+      thinking: {
+        type: "adaptive",
+        display: "summarized",
+        block_binding: { prefix_mismatch_behavior: "drop_block" },
+      },
       output_config: { effort: "low" },
       cache_control: { type: "ephemeral", ttl: "1h" },
+      betas: ["thinking-binding-controls-2026-08-01"],
     });
   });
 
