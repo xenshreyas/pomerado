@@ -1,5 +1,6 @@
 import type { ModelProvider, ModelRequest, ModelSettings, Usage } from "@openai/agents";
 import type { Capability } from "@openai/agents/sandbox";
+import { Data, Schema } from "effect";
 
 /** Which agent a model call is for. */
 export type ModelRole = "minter" | "guardian" | "outcome_reviewer";
@@ -72,6 +73,8 @@ export interface BackendFeatures {
  * `ModelIntent`, and the backend owns how its provider's requests say it.
  */
 export interface ModelBackend {
+  /** Stable id, recorded in snapshots so that only the backend that wrote one resumes it. */
+  readonly id: "openai" | "anthropic" | (string & {});
   /** The model a role runs on (IDs come from models.ts). */
   readonly model: (role: ModelRole) => string;
   readonly agent: (role: ModelRole, intent: ModelIntent) => AgentShaping;
@@ -99,3 +102,39 @@ export interface ModelBackend {
     run: (provider: ModelProvider) => Promise<unknown>,
   ) => Promise<Usage>;
 }
+
+/** The backend and model a saved conversation was written with. */
+export const BackendTag = Schema.Struct({ id: Schema.String, model: Schema.String });
+export type BackendTag = typeof BackendTag.Type;
+
+/** A role's tag on `backend`. */
+export const backendTag = (backend: ModelBackend, role: ModelRole): BackendTag => ({
+  id: backend.id,
+  model: backend.model(role),
+});
+
+/**
+ * The version a snapshot is written as: 1 for OpenAI's, which every release reads, and 2 for
+ * another backend's, which a release from before backend tags refuses instead of resuming it.
+ */
+export const snapshotVersion = (tag: BackendTag): 1 | 2 => (tag.id === "openai" ? 1 : 2);
+
+/** A snapshot written on another backend than the one resuming it. The host starts afresh. */
+export class SnapshotBackendMismatch extends Data.TaggedError("SnapshotBackendMismatch")<{
+  readonly snapshot: string;
+  readonly backend: string;
+}> {}
+
+/**
+ * The mismatch when a snapshot `written` on a backend resumes on `tag`'s, or undefined when it
+ * resumes: an untagged snapshot is OpenAI's.
+ */
+export const backendMismatch = (
+  written: BackendTag | undefined,
+  tag: BackendTag,
+): SnapshotBackendMismatch | undefined => {
+  const snapshot = written?.id ?? "openai";
+  return snapshot === tag.id
+    ? undefined
+    : new SnapshotBackendMismatch({ snapshot, backend: tag.id });
+};

@@ -6,6 +6,7 @@ import type { ModelFailureMetadata } from "../models/model-failure.js";
 import { effectiveReasoningContext } from "../models/reasoning-settings.js";
 import { flatUsage, modelUsageCounts } from "../models/model-usage.js";
 import { promptCacheDiagnostics } from "../models/prompt-cache.js";
+import { backendMismatch, backendTag } from "../models/backend.js";
 import type { ModelBackend, ModelIntent } from "../models/backend.js";
 import { mintCompactionThresholdTokens, openAIBackend } from "../models/backends/openai.js";
 import { strictToolSchema } from "./strict-tool-schema.js";
@@ -577,6 +578,18 @@ const openAIMinter = (
             }
             if (turn.retainRuntimeRecord !== undefined && ports.observerFactory === undefined)
               throw new MintFailure({ code: "Unavailable" });
+            const tag = backendTag(backend, "minter");
+            const initial = turn.recovery?.initial;
+            const mismatch =
+              initial === undefined ? undefined : backendMismatch(initial.backend, tag);
+            if (mismatch !== undefined)
+              throw new MintFailure({
+                code: "Unavailable",
+                failureDetail: failureDetail("model_backend_mismatch", {
+                  operation: "mint.resume",
+                  error: mismatch,
+                }),
+              });
             const retainRuntimeRecord = turn.retainRuntimeRecord;
             const diagnostics = ports.observerFactory?.(
               (value, timing) => turn.runTool(turn.reportTrace?.(value, timing) ?? Effect.void),
@@ -1504,6 +1517,7 @@ const openAIMinter = (
                           modelCalls: modelCalls + 1,
                           finalsWithoutTool,
                           historyOffset: liveOffset,
+                          backend: tag,
                         },
                         Effect.tryPromise({
                           try: invoke,
