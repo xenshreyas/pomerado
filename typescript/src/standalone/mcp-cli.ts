@@ -4,12 +4,18 @@ import { parseArgs } from "node:util";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
-import { Effect, Exit, Scope } from "effect";
+import { Cause, Effect, Exit, Scope } from "effect";
 import { localError, localPromise } from "../execution/local-path.js";
 import { readIntegration } from "./artifact-files.js";
 import { prepareIntegration } from "./mcp-package.js";
 import { makeIntegrationMcp, makePomeradoMcp } from "./mcp-server.js";
 import type { PomeradoOptions } from "./contracts.js";
+import {
+  ModelBackendUnavailable,
+  chosenModelBackend,
+  modelBackendOption,
+  modelBackendUsage,
+} from "./model-backend-choice.js";
 
 const usage = `Pomerado MCP
 
@@ -19,9 +25,12 @@ const usage = `Pomerado MCP
 Options
   --endpoint URL     Attach to native Playwright
   --headed           Show local Chromium
+${modelBackendUsage}
 
 The mint root defaults to ./integrations. Supply model credentials in the environment to
-mint. Serving makes no model request and needs no model credentials.
+mint: OPENAI_API_KEY, or ANTHROPIC_API_KEY with --model-backend anthropic
+(POMERADO_MODEL_BACKEND=anthropic). Serving makes no model request and needs no model
+credentials.
 Stdout is reserved for MCP. Human questions use provide_input through your MCP client.
 `;
 
@@ -59,6 +68,7 @@ export const runMcpCli = (
               artifact: { type: "string" },
               endpoint: { type: "string" },
               headed: { type: "boolean" },
+              ...modelBackendOption,
             },
           }),
         catch: localError,
@@ -70,7 +80,11 @@ export const runMcpCli = (
       const mode = positionals[0];
       if (positionals.length !== 1 || (mode !== "mint" && mode !== "serve"))
         return yield* Effect.fail(new Error("Choose mint or serve. See --help."));
+      // Serving makes no model request, so only a mint reads its backend and checks it can.
+      const modelBackend =
+        mode === "mint" ? yield* chosenModelBackend(values["model-backend"]) : undefined;
       const pomerado = {
+        ...(modelBackend === undefined ? {} : { modelBackend }),
         ...options,
         browser: {
           ...options.browser,
@@ -121,7 +135,12 @@ export const startMcpCli = (
   Effect.runCallback(runMcpCli(args, options), {
     onExit: (result) => {
       if (Exit.isFailure(result)) {
-        process.stderr.write("Pomerado MCP failed. Check its local configuration.\n");
+        const failure = Cause.squash(result.cause);
+        process.stderr.write(
+          failure instanceof ModelBackendUnavailable
+            ? `${failure.message}\n`
+            : "Pomerado MCP failed. Check its local configuration.\n",
+        );
         process.exitCode = 1;
       }
     },

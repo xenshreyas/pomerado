@@ -10,6 +10,7 @@ import { createPomerado } from "./pomerado.js";
 import type { PomeradoOptions } from "./contracts.js";
 import { RunOutcomeFailure } from "./run-report.js";
 import { makeTerminalAsker } from "../inputs/terminal.js";
+import { chosenModelBackend, modelBackendOption, modelBackendUsage } from "./model-backend-choice.js";
 
 const usage = `Pomerado
 
@@ -21,8 +22,10 @@ Options
   --headed                Show locally launched Chromium
   --effect read|write|ask  Mint authority (default ask)
   --timeout-seconds N      Session budget (default 1200)
+${modelBackendUsage}
 
-Set OPENAI_API_KEY before minting. A run makes no model request and needs no key.
+Set OPENAI_API_KEY before minting, or ANTHROPIC_API_KEY with --model-backend anthropic
+(POMERADO_MODEL_BACKEND=anthropic). A run makes no model request and needs no key.
 A run ignores --intent and --effect. Questions are asked in this terminal.
 `;
 
@@ -55,6 +58,7 @@ const readOptions = (args: readonly string[]) =>
           headed: { type: "boolean" },
           effect: { type: "string" },
           "timeout-seconds": { type: "string" },
+          ...modelBackendOption,
         },
       }),
     );
@@ -104,7 +108,11 @@ const runCli = (
         return;
       }
       const { values, command, timeoutMs, request } = options;
+      // A run makes no model request, so only a mint reads its backend and checks it can.
+      const modelBackend =
+        command === "mint" ? yield* chosenModelBackend(values["model-backend"]) : undefined;
       const pomerado = yield* createPomerado({
+        ...(modelBackend === undefined ? {} : { modelBackend }),
         ...overrides,
         ask: makeTerminalAsker(),
         timeoutMs,
