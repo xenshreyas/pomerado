@@ -1,0 +1,55 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "e4719edea1fb3faf4ab98766e568334919eeb09f1f5a1f87ccd53691cdb0b28a",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:bea4aac64a11…, 58209 chars> Synthetic policy Pomerado policy for one submitted execution…",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "explicit",
+        "prewarm": true
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 240000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  }
+]

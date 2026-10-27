@@ -1,0 +1,269 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "368160fbcb56eeb115906e54132498433ce2dd21c08055e5cbe00ab95326ace5",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:bea4aac64a11…, 58209 chars> Synthetic policy Pomerado policy for one submitted execution…",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        },
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:fbaae2b5269d…, 762 chars> This is one continuing Guardian conversation for this mint. …"
+            }
+          ]
+        },
+        {
+          "type": "configuration_update",
+          "reasoning": {
+            "effort": "low"
+          }
+        },
+        {
+          "role": "user",
+          "content": "<sha256:76ec248f222e…, 3954 chars> {\"trusted_review\":{\"kind\":\"execution\",\"policy\":\"Return the s…"
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit"
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "9e2f0a346cb1e9879488075018b05105419e5a7ffb32099c7bbdf30993afadba",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": {
+        "carriedOver": 4,
+        "added": [
+          {
+            "type": "compaction_trigger"
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_1"
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "b94948b9b9a4a439e2fdbf82074460ba95ec02f33e10e69d18f1bc5e1a75f2e3",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:bea4aac64a11…, 58209 chars> Synthetic policy Pomerado policy for one submitted execution…",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        },
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:fbaae2b5269d…, 762 chars> This is one continuing Guardian conversation for this mint. …"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "<sha256:76ec248f222e…, 3954 chars> {\"trusted_review\":{\"kind\":\"execution\",\"policy\":\"Return the s…"
+        },
+        {
+          "type": "message",
+          "id": "msg_allow",
+          "role": "assistant",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "{\"outcome\":\"allow\",\"rationale\":\"Synthetic decision\",\"action\":\"read\"}",
+              "annotations": []
+            }
+          ],
+          "status": "completed"
+        },
+        {
+          "role": "user",
+          "content": "<sha256:76ec248f222e…, 3954 chars> {\"trusted_review\":{\"kind\":\"execution\",\"policy\":\"Return the s…"
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_1"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 240000
+        }
+      ],
+      "reasoning": {
+        "effort": "low",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "e59e514b82c300b57fdba06f37463d2b29794df534475342a75c23deb56c61a9",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:bea4aac64a11…, 58209 chars> Synthetic policy Pomerado policy for one submitted execution…",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        },
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:fbaae2b5269d…, 762 chars> This is one continuing Guardian conversation for this mint. …"
+            }
+          ]
+        },
+        {
+          "type": "compaction",
+          "id": "cmp_provider",
+          "encrypted_content": "opaque-cmp_provider"
+        },
+        {
+          "type": "configuration_update",
+          "reasoning": {
+            "effort": "low"
+          }
+        },
+        {
+          "id": "fc_read",
+          "type": "function_call",
+          "name": "read_source",
+          "call_id": "read",
+          "arguments": "{\"path\":\"operation/operation.mjs\",\"offset\":0,\"match\":null,\"paths\":null}",
+          "status": "completed"
+        },
+        {
+          "type": "function_call_output",
+          "call_id": "read",
+          "output": "{\"kind\":\"untrusted_source\",\"path\":\"operation/operation.mjs\",\"byteOffset\":0,\"source\":\"export default 1\",\"nextOffset\":16,\"hasMore\":false}",
+          "status": "completed"
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_3"
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  }
+]
