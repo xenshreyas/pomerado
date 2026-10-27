@@ -1,0 +1,608 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "f20bef7a6f18d96d8fdad563714ec724ba8b873c6507b4e8e6e02cca520df2ae",
+    "body": {
+      "model": "{{solModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:e04bc4eef996…, 4797 chars> You are operating inside an isolated sandbox workspace.\n\n# W…"
+            },
+            {
+              "type": "input_text",
+              "text": "Synthetic static reference.",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "<sha256:0df360ca5d25…, 2021 chars> {\"screenedRequest\":\"{\\\"mode\\\":\\\"mint\\\",\\\"intent\\\":\\\"Read pub…"
+        },
+        {
+          "role": "user",
+          "content": "<sha256:cd7e15fe704c…, 694 chars> {\"hostTools\":{\"offered\":[\"read_source\",\"execute\",\"finish_bui…"
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "fffb025e78cb5d4426233ff836379d7a19c6e0100a5361acd74c43f1eda41aad",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 268000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "tool_choice": {
+        "type": "allowed_tools",
+        "mode": "auto",
+        "tools": [
+          {
+            "type": "function",
+            "name": "read_source"
+          },
+          {
+            "type": "function",
+            "name": "execute"
+          },
+          {
+            "type": "function",
+            "name": "finish_build"
+          },
+          {
+            "type": "function",
+            "name": "report_blocked"
+          },
+          {
+            "type": "function",
+            "name": "request_input"
+          },
+          {
+            "type": "function",
+            "name": "check_signed_in_marker"
+          },
+          {
+            "type": "apply_patch"
+          },
+          {
+            "type": "function",
+            "name": "exec_command"
+          }
+        ]
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "0cb5fd664425e51801293ca08526e643ae9d740bdf8bfc0e8e61d08628082b3b",
+    "body": {
+      "model": "{{solModel}}",
+      "input": {
+        "carriedOver": 3,
+        "added": [
+          {
+            "id": "rs_golden",
+            "type": "reasoning",
+            "summary": [],
+            "encrypted_content": "opaque-reasoning"
+          },
+          {
+            "id": "fc_read_source",
+            "type": "function_call",
+            "name": "read_source",
+            "call_id": "read_source",
+            "arguments": "{\"path\":\".agents/core/SKILL.md\",\"offset\":null,\"limit\":null,\"paths\":null,\"intent\":\"Synthetic read_source purpose\"}",
+            "status": "completed"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "read_source",
+            "output": "{\"kind\":\"untrusted_source\",\"path\":\".agents/core/SKILL.md\",\"source\":\"Publish through finish_build or request legitimate missing input.\",\"offset\":0,\"total\":65,\"offsetUnit\":\"UTF-16 code units\",\"nextOffset\":null}",
+            "status": "completed"
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "fffb025e78cb5d4426233ff836379d7a19c6e0100a5361acd74c43f1eda41aad",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_1"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 268000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "tool_choice": {
+        "type": "allowed_tools",
+        "mode": "auto",
+        "tools": [
+          {
+            "type": "function",
+            "name": "read_source"
+          },
+          {
+            "type": "function",
+            "name": "execute"
+          },
+          {
+            "type": "function",
+            "name": "finish_build"
+          },
+          {
+            "type": "function",
+            "name": "report_blocked"
+          },
+          {
+            "type": "function",
+            "name": "request_input"
+          },
+          {
+            "type": "function",
+            "name": "check_signed_in_marker"
+          },
+          {
+            "type": "apply_patch"
+          },
+          {
+            "type": "function",
+            "name": "exec_command"
+          }
+        ]
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "1d9e0f48d9975e8ac54698d8cf17c3dd7867625f3044210b378c0c50334933ab",
+    "body": {
+      "model": "{{solModel}}",
+      "input": {
+        "carriedOver": 6,
+        "added": [
+          {
+            "type": "apply_patch_call",
+            "id": "apc_golden",
+            "call_id": "edit",
+            "status": "completed",
+            "operation": {
+              "type": "update_file",
+              "path": "src/tool.ts",
+              "diff": "@@\n-export default {};\n+export default { name: \"read_public\" };"
+            }
+          },
+          {
+            "type": "apply_patch_call_output",
+            "call_id": "edit",
+            "status": "completed",
+            "output": "Workspace edit completed."
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "fffb025e78cb5d4426233ff836379d7a19c6e0100a5361acd74c43f1eda41aad",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_2"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 268000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "tool_choice": {
+        "type": "allowed_tools",
+        "mode": "auto",
+        "tools": [
+          {
+            "type": "function",
+            "name": "read_source"
+          },
+          {
+            "type": "function",
+            "name": "execute"
+          },
+          {
+            "type": "function",
+            "name": "finish_build"
+          },
+          {
+            "type": "function",
+            "name": "report_blocked"
+          },
+          {
+            "type": "function",
+            "name": "request_input"
+          },
+          {
+            "type": "function",
+            "name": "check_signed_in_marker"
+          },
+          {
+            "type": "apply_patch"
+          },
+          {
+            "type": "function",
+            "name": "exec_command"
+          }
+        ]
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "d59520aeb4159d1da4ade7fcf74562a53269f635d286eba3eeaeb52e7c7fb639",
+    "body": {
+      "model": "{{solModel}}",
+      "input": {
+        "carriedOver": 8,
+        "added": [
+          {
+            "type": "compaction_trigger"
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "fffb025e78cb5d4426233ff836379d7a19c6e0100a5361acd74c43f1eda41aad",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_3"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 268000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "tool_choice": {
+        "type": "allowed_tools",
+        "mode": "auto",
+        "tools": [
+          {
+            "type": "function",
+            "name": "read_source"
+          },
+          {
+            "type": "function",
+            "name": "execute"
+          },
+          {
+            "type": "function",
+            "name": "finish_build"
+          },
+          {
+            "type": "function",
+            "name": "report_blocked"
+          },
+          {
+            "type": "function",
+            "name": "request_input"
+          },
+          {
+            "type": "function",
+            "name": "check_signed_in_marker"
+          },
+          {
+            "type": "apply_patch"
+          },
+          {
+            "type": "function",
+            "name": "exec_command"
+          }
+        ]
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "5c530f67849da89424f5c4dd7e95ac80db0fa199f234b322fce518996c2aabd1",
+    "body": {
+      "model": "{{solModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:e04bc4eef996…, 4797 chars> You are operating inside an isolated sandbox workspace.\n\n# W…"
+            },
+            {
+              "type": "input_text",
+              "text": "Synthetic static reference.",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        },
+        {
+          "type": "compaction",
+          "id": "cmp_idle",
+          "encrypted_content": "opaque-cmp_idle"
+        },
+        {
+          "role": "user",
+          "content": "<sha256:07ea3975434a…, 338 chars> Host note: your earlier turns were compacted to save context…"
+        },
+        {
+          "id": "fc_execute",
+          "type": "function_call",
+          "name": "execute",
+          "call_id": "execute",
+          "arguments": "{\"purpose\":\"example\",\"target\":\"pureFiles\",\"loginUrl\":null,\"entrypoint\":\"src/tool.ts\",\"fixtureRefs\":[],\"caseFilter\":[],\"maxWorkers\":1,\"timeoutSeconds\":30,\"testInput\":null,\"signInStep\":null,\"cardFillStep\":null,\"exampleInput\":null,\"intent\":\"Synthetic execute purpose\"}",
+          "status": "completed"
+        },
+        {
+          "type": "function_call_output",
+          "call_id": "execute",
+          "output": "{\"executionId\":\"execution_one\",\"status\":\"completed\",\"effect\":\"verified\",\"repeatableRead\":false,\"observations\":\"{\\\"value\\\":\\\"public\\\"}\"}",
+          "status": "completed"
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "fffb025e78cb5d4426233ff836379d7a19c6e0100a5361acd74c43f1eda41aad",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_3"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 268000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "tool_choice": {
+        "type": "allowed_tools",
+        "mode": "auto",
+        "tools": [
+          {
+            "type": "function",
+            "name": "read_source"
+          },
+          {
+            "type": "function",
+            "name": "execute"
+          },
+          {
+            "type": "function",
+            "name": "finish_build"
+          },
+          {
+            "type": "function",
+            "name": "report_blocked"
+          },
+          {
+            "type": "function",
+            "name": "request_input"
+          },
+          {
+            "type": "function",
+            "name": "check_signed_in_marker"
+          },
+          {
+            "type": "apply_patch"
+          },
+          {
+            "type": "function",
+            "name": "exec_command"
+          }
+        ]
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "cf1a74dde20847ba13a3b832e4938c857a4cebc0cbea96949a7d14dd9c040e44",
+    "body": {
+      "model": "{{solModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:e04bc4eef996…, 4797 chars> You are operating inside an isolated sandbox workspace.\n\n# W…"
+            },
+            {
+              "type": "input_text",
+              "text": "Synthetic static reference.",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        },
+        {
+          "type": "compaction",
+          "id": "cmp_provider",
+          "encrypted_content": "opaque-cmp_provider"
+        },
+        {
+          "role": "user",
+          "content": "<sha256:07ea3975434a…, 338 chars> Host note: your earlier turns were compacted to save context…"
+        },
+        {
+          "id": "fc_execute_again",
+          "type": "function_call",
+          "name": "execute",
+          "call_id": "execute_again",
+          "arguments": "{\"purpose\":\"example\",\"target\":\"pureFiles\",\"loginUrl\":null,\"entrypoint\":\"src/tool.ts\",\"fixtureRefs\":[],\"caseFilter\":[],\"maxWorkers\":1,\"timeoutSeconds\":30,\"testInput\":null,\"signInStep\":null,\"cardFillStep\":null,\"exampleInput\":null,\"intent\":\"Synthetic execute purpose\"}",
+          "status": "completed"
+        },
+        {
+          "type": "function_call_output",
+          "call_id": "execute_again",
+          "output": "<sha256:331245f7051f…, 430 chars> {\"status\":\"tool_failed\",\"code\":\"AlreadyExecuted\",\"instructio…",
+          "status": "completed"
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "fffb025e78cb5d4426233ff836379d7a19c6e0100a5361acd74c43f1eda41aad",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_5"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 268000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "tool_choice": {
+        "type": "allowed_tools",
+        "mode": "auto",
+        "tools": [
+          {
+            "type": "function",
+            "name": "read_source"
+          },
+          {
+            "type": "function",
+            "name": "execute"
+          },
+          {
+            "type": "function",
+            "name": "finish_build"
+          },
+          {
+            "type": "function",
+            "name": "report_blocked"
+          },
+          {
+            "type": "function",
+            "name": "request_input"
+          },
+          {
+            "type": "function",
+            "name": "check_signed_in_marker"
+          },
+          {
+            "type": "apply_patch"
+          },
+          {
+            "type": "function",
+            "name": "exec_command"
+          }
+        ]
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  }
+]
