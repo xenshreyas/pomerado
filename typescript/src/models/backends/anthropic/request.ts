@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { AgentInputItem, ModelRequest, SerializedTool } from "@openai/agents";
 import type { ModelIntent } from "../../backend.js";
+import { claudeSchema } from "./schema.js";
 
 type Block = Anthropic.Beta.BetaContentBlockParam;
 type Role = "user" | "assistant" | "system";
@@ -116,8 +117,11 @@ const tool = (tool: SerializedTool): Anthropic.Beta.BetaToolUnion => {
   return {
     name: tool.name,
     description: tool.description,
-    // The Agents SDK types `required` as any property key; a JSON Schema's names are strings.
-    input_schema: tool.parameters as Anthropic.Beta.BetaTool.InputSchema,
+    // A freeform tool, sent without `strict`, keeps its whole schema: Claude does not constrain
+    // its input to it.
+    input_schema: (tool.strict
+      ? claudeSchema(tool.parameters)
+      : tool.parameters) as Anthropic.Beta.BetaTool.InputSchema,
     ...(tool.strict ? { strict: true } : {}),
   };
 };
@@ -185,7 +189,12 @@ export const anthropicRequest = (
       messages,
       ...(tools.length === 0 ? {} : { tools, tool_choice: toolChoice(request, intent) }),
       thinking: { type: "adaptive", display: "summarized" },
-      output_config: { effort: intent.effort },
+      output_config: {
+        effort: intent.effort,
+        ...(request.outputType === "text"
+          ? {}
+          : { format: { type: "json_schema", schema: claudeSchema(request.outputType.schema) } }),
+      },
       cache_control: cacheControl,
     },
     dropped,
