@@ -18,10 +18,8 @@ export const makeAnthropicModel = ({ client, model, intentOf }: AnthropicModelOp
   const send = (request: ModelRequest) => {
     const { params, dropped } = anthropicRequest(request, model, intentOf(request));
     const stream = client.beta.messages.stream(params, { signal: request.signal });
-    const response = async () => ({
-      ...anthropicResponse(await stream.finalMessage(), stream.request_id ?? undefined),
-      ...(dropped.length === 0 ? {} : { providerData: { droppedInputItems: dropped } }),
-    });
+    const response = async () =>
+      anthropicResponse(await stream.finalMessage(), stream.request_id ?? undefined, dropped);
     return { stream, response };
   };
   return {
