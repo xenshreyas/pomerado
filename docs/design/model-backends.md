@@ -361,15 +361,47 @@ These are follow-ups, each its own PR.
 ## Delivery
 
 First, open an upstream issue with the problem, the solution and this plan, as CONTRIBUTING asks for larger
-changes. Then land these PRs, each with docs and CHANGELOG entries where public behavior changes.
+changes. Then land a stack of small PRs.
 
-0. **Golden request fixtures.** Tests only, with no source change.
-1. **Model backend seam, no behavior change.** The interface, the OpenAI backend (today's wrappers moved
-   without edits), the scripted test backend, and the new factories beside the old ones. The golden
-   fixtures pass unchanged.
-2. **Backend tag on snapshots.** Version 2 for non-OpenAI snapshots, and the cross-backend refusal.
-3. **Claude backend.** The translation in decisions 2 to 5, CLI and MCP selection, the optional peer
-   dependency, the contract and append-only suites, and the docs.
+**Size targets.** Upstream's median merged PR is about 110 changed lines and the 90th percentile about 500.
+So each PR here aims for 150 to 350 lines, tests included, and never goes much past 500. Golden fixture
+JSON counts toward that.
+
+**Each PR:**
+- is green on its own
+- has one purpose, stated in its title
+- leaves OpenAI behavior byte-identical until PR 13 makes Claude selectable
+- adds docs and a CHANGELOG entry only where public behavior changes
+
+**Tests and the seam (no behavior change):**
+
+1. **Golden fixtures for the minter.** Full request bodies for a build turn, prewarm, idle compaction, and
+   the note after a provider compaction. Tests only.
+2. **Golden fixtures for Guardian and the outcome reviewer.** Tests only.
+3. **Model backend interface and OpenAI backend for the minter.** The minter's settings and request
+   wrappers move into the backend without edits.
+4. **The OpenAI backend for Guardian.**
+5. **The OpenAI backend for the outcome reviewer.**
+6. **Selecting a backend in the library.** `modelBackend` option, `makeMinter` / `makeReviewer` /
+   `makeOutcomeReviewer` beside the existing factories, and feature-gated callers for background
+   compaction, prewarm and cache diagnostics.
+7. **Backend tag on snapshots.** Version 2 for snapshots from other backends, and the cross-backend
+   refusal.
+8. **Neutral failure kinds.** `classify` before the generic rules, and `refused` added to `modelOutage`.
+
+**The Claude backend (dormant until PR 13):**
+
+9. **Request conversion.** Instructions, messages, tool calls and results, system cache placement, effort
+   and tool choice. Also the optional peer dependency.
+10. **The Claude model and response reading.** The `Model` itself, output items, usage, refusal and
+    truncation errors, and failure classification.
+11. **Tool schemas.** Strict schema subset conversion and structured output.
+12. **`apply_patch` on Claude.** Tool definition, V4A grammar, call and result mapping.
+13. **Long context and switching it on.** Threshold compaction, thinking block binding, the append-only
+    test, the CLI and MCP `--model-backend` flag, and the docs.
+
+If a PR in this list runs over budget, it splits further. PRs 9 to 12 add code nothing calls yet, so each
+one's description says which PR wires it in.
 
 ## Risks
 
