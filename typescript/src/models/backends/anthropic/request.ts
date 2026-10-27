@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { AgentInputItem, ModelRequest, SerializedTool } from "@openai/agents";
 import type { ModelIntent } from "../../backend.js";
+import { applyPatchName, applyPatchTool } from "./apply-patch.js";
 import { claudeSchema } from "./schema.js";
 
 type Block = Anthropic.Beta.BetaContentBlockParam;
@@ -72,6 +73,30 @@ const turnOf = (item: AgentInputItem): Turn | undefined => {
           },
         ],
       };
+    case "apply_patch_call":
+      return {
+        role: "assistant",
+        blocks: [
+          stored ?? {
+            type: "tool_use",
+            id: item.callId,
+            name: applyPatchName,
+            input: { operation: item.operation },
+          },
+        ],
+      };
+    case "apply_patch_call_output":
+      return {
+        role: "user",
+        blocks: [
+          {
+            type: "tool_result",
+            tool_use_id: item.callId,
+            ...(item.output === undefined ? {} : { content: item.output }),
+            ...(item.status === "failed" ? { is_error: true } : {}),
+          },
+        ],
+      };
     case "reasoning":
       return stored === undefined ? undefined : { role: "assistant", blocks: [stored] };
     default:
@@ -112,6 +137,7 @@ const conversation = (input: ModelRequest["input"]) => {
 };
 
 const tool = (tool: SerializedTool): Anthropic.Beta.BetaToolUnion => {
+  if (tool.type === "apply_patch") return applyPatchTool;
   if (tool.type !== "function")
     throw new Error(`The Claude backend has no form for the ${tool.type} tool ${tool.name}`);
   return {
