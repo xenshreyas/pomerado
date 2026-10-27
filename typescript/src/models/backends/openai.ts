@@ -1,3 +1,4 @@
+import { Runner } from "@openai/agents";
 import type { ModelProvider, ModelRequest } from "@openai/agents";
 import { StaticCompactionPolicy, compaction } from "@openai/agents/sandbox";
 import { guardianReviewSettings } from "../../guardian/openai-input.js";
@@ -151,7 +152,13 @@ const instructionsProvider = (intentOf: IntentOf, base: ModelProvider): ModelPro
     (request) => withConversationComparison(request, intentOf(request).cache?.compareWith),
   );
 
-const provider: ModelBackend["provider"] = (role, intentOf, base) =>
+/**
+ * The SDK's default provider, resolved when a model is first asked for, as a Runner without a
+ * provider resolves it: the SDK exports no other way to reach it.
+ */
+const sdkDefault = (): ModelProvider => new Runner().config.modelProvider;
+
+const provider: ModelBackend["provider"] = (role, intentOf, base = sdkDefault()) =>
   role === "minter" ? minterProvider(intentOf, base) : instructionsProvider(intentOf, base);
 
 const agents: Record<ModelRole, (intent: ModelIntent) => AgentShaping> = {
@@ -165,9 +172,10 @@ export const openAIBackend = (): ModelBackend => ({
   model: (role) => (role === "minter" ? solModel : lunaModel),
   agent: (role, intent) => agents[role](intent),
   provider,
+  features: { backgroundCompaction: true, cacheDiagnostics: true, effortChangeKeepsCache: true },
   // The prewarm keeps only the instructions' messages: the minter prewarms through its own
   // request's layout instead (`intent.prewarm`).
-  prewarm: (role, intent, base, run) =>
+  prewarm: (role, intent, base = sdkDefault(), run) =>
     prewarmInstructions(base, intent.instructionParts?.length ?? 0, (prewarming) =>
       run(provider(role, () => intent, prewarming)),
     ),

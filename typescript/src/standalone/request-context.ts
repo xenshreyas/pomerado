@@ -10,7 +10,8 @@ import {
   type ReviewedLiveTestBatch,
   type ReviewTurn,
 } from "../guardian/review.js";
-import { makeOpenAIReviewer, nativeExecutionEnvironment } from "../guardian/openai.js";
+import { makeReviewer, nativeExecutionEnvironment } from "../guardian/openai.js";
+import { openAIBackend } from "../models/backends/openai.js";
 import {
   answersForReview,
   type AnsweredQuestion,
@@ -298,7 +299,7 @@ export const requestContext = (session: StandaloneSession, request: PomeradoRequ
         .some((execution) => execution.authentication?.state === "authenticated");
     const guardian = makeGuardian(
       refusalsOnHostGapsFail({
-        ...makeOpenAIReviewer(policy, false, {
+        ...makeReviewer(options.modelBackend ?? openAIBackend(), policy, false, {
           executionEnvironment: nativeExecutionEnvironment,
           ...(options.guardianProvider === undefined
             ? {}

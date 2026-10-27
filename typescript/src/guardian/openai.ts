@@ -565,6 +565,9 @@ export type GuardianPrewarm = ReturnType<typeof modelUsageCounts>;
 const prewarmShared = (shared: string, backend: ModelBackend, options: GuardianModelOptions) =>
   Effect.tryPromise({
     try: async (signal) => {
+      // A backend that can't prewarm caches nothing, so the prewarm counts none.
+      const prewarm = backend.prewarm;
+      if (prewarm === undefined) return modelUsageCounts(new Usage());
       const intent: ModelIntent = {
         ...reviewIntent(
           [shared],
@@ -594,15 +597,10 @@ const prewarmShared = (shared: string, backend: ModelBackend, options: GuardianM
         tracingDisabled: true,
         traceIncludeSensitiveData: false,
       });
-      const usage = await backend.prewarm(
-        "guardian",
-        intent,
-        runner.config.modelProvider,
-        async (provider) => {
-          runner.config.modelProvider = provider;
-          return runner.run(agent, "Prewarm the cached instructions.", { signal, maxTurns: 1 });
-        },
-      );
+      const usage = await prewarm("guardian", intent, options.modelProvider, async (provider) => {
+        runner.config.modelProvider = provider;
+        return runner.run(agent, "Prewarm the cached instructions.", { signal, maxTurns: 1 });
+      });
       return modelUsageCounts(usage);
     },
     catch: (error) =>
@@ -747,9 +745,13 @@ const reviewerWithPolicy = (
           const requestEffort = guardianModel.modelSettings.reasoning.effort;
           const reasoningEffort = specialized?.reasoningEffort ?? requestEffort;
           // The effort the conversation runs at now: its latest configuration update's, or the
-          // request's own. A review at another one adds an update.
+          // request's own. A review at another one adds an update, on a backend where that keeps
+          // the cache; on another, each request carries the review's effort in its intent.
           const conversationEffort = turn.session?.reasoningEffort() ?? requestEffort;
-          const effortUpdate = reasoningEffort === conversationEffort ? undefined : reasoningEffort;
+          const effortUpdate =
+            reasoningEffort === conversationEffort || !backend.features.effortChangeKeepsCache
+              ? undefined
+              : reasoningEffort;
           const instructions = guardianInstructions(shared, turn);
           const intent = reviewIntent(
             instructions,
@@ -777,13 +779,16 @@ const reviewerWithPolicy = (
           const callBound = options.modelCallBound ?? guardianModelCallBound;
           // The backend's shaping goes right above the model, so every observer still sees the
           // SDK's own request.
-          const cacheDiagnostics = collectingCacheDiagnostics(runner.config.modelProvider);
+          // Only a backend with cache diagnostics compares a session's requests and reports them.
+          const diagnosing = backend.features.cacheDiagnostics;
+          const shaped = backend.provider(
+            "guardian",
+            () => (diagnosing && turn.session ? turn.session.compared(intent) : intent),
+            options.modelProvider,
+          );
+          const cacheDiagnostics = diagnosing ? collectingCacheDiagnostics(shaped) : undefined;
           runner.config.modelProvider = boundedModelCalls(
-            backend.provider(
-              "guardian",
-              () => turn.session?.compared(intent) ?? intent,
-              cacheDiagnostics.provider,
-            ),
+            cacheDiagnostics?.provider ?? shaped,
             callBound,
             {
               retried: (attempt) => {
@@ -830,6 +835,7 @@ const reviewerWithPolicy = (
               runner.config.modelProvider,
               () => activeState.history,
               () => reviewSignal,
+              backend.features,
             );
           const flushDiagnostics = async () => {
             try {
@@ -956,7 +962,7 @@ const reviewerWithPolicy = (
               await Effect.runPromise(turn.session.observe(result.history), { signal });
             await Effect.runPromise(
               turn.reportUsage?.(
-                guardianUsage(usage, reasoningEffort, cacheDiagnostics.diagnostics),
+                guardianUsage(usage, reasoningEffort, cacheDiagnostics?.diagnostics ?? []),
               ) ?? Effect.void,
               { signal },
             );
