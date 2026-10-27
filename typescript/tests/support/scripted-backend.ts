@@ -27,9 +27,9 @@ export const scriptedBackend = () => {
         };
       },
     }),
-    prewarm: async (_role, intent, base, run) => {
-      agents.push(intent);
-      await run(base);
+    // A prewarm is the run's ordinary request, which the provider records.
+    prewarm: async (role, intent, base, run) => {
+      await run(backend.provider(role, () => intent, base));
       return new Usage();
     },
   };

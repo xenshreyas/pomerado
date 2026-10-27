@@ -1,8 +1,13 @@
 import type { ModelProvider, ModelRequest } from "@openai/agents";
 import { StaticCompactionPolicy, compaction } from "@openai/agents/sandbox";
 import { guardianReviewSettings } from "../../guardian/openai-input.js";
-import type { AgentShaping, ModelBackend, ModelIntent } from "../backend.js";
-import { instructionsAsMessages, prewarmInstructions } from "../cached-instructions.js";
+import { guardianCompaction } from "../../guardian/session.js";
+import type { AgentShaping, ModelBackend, ModelIntent, ModelRole } from "../backend.js";
+import {
+  instructionsAsMessages,
+  prewarmInstructions,
+  withCacheComparison as withConversationComparison,
+} from "../cached-instructions.js";
 import type { InstructionsMessage } from "../cached-instructions.js";
 import { lunaModel, solModel } from "../models.js";
 import {
@@ -104,23 +109,61 @@ const guardianAgent = (intent: ModelIntent): AgentShaping => ({
   capabilities: [],
 });
 
+const outcomeReviewerAgent = (intent: ModelIntent): AgentShaping => ({
+  modelSettings: withReasoningContinuity({
+    store: false,
+    reasoning: { effort: intent.effort, context: "all_turns" },
+    // The instructions are cached for 12 hours, the conversation after them implicitly.
+    promptCacheOptions: { mode: "implicit" },
+    parallelToolCalls: intent.parallelToolCalls,
+    // Its conversation compacts at Guardian's threshold, the intent's compactAtTokens.
+    providerData: {
+      ...guardianCompaction().samplingParams({ model: lunaModel }),
+      ...(intent.cache?.key === undefined ? {} : { prompt_cache_key: intent.cache.key }),
+    },
+  }),
+  capabilities: [],
+});
+
+/** The provider with `shape` applied to every request it sends. */
+const shapingRequests = (
+  provider: ModelProvider,
+  shape: (request: ModelRequest) => ModelRequest,
+): ModelProvider => ({
+  getModel: async (name) => {
+    const model = await provider.getModel(name);
+    return {
+      ...model,
+      getResponse: (request) => model.getResponse(shape(request)),
+      getStreamedResponse: (request) => model.getStreamedResponse(shape(request)),
+    };
+  },
+});
+
 /**
  * The instructions travel as developer messages, the shared ones ending in a cache breakpoint,
- * right above the model, so every observer still sees them as instructions.
+ * right above the model, so every observer still sees them as instructions. Each request of a
+ * continuing conversation compares its prompt cache with the conversation's latest response.
  */
 const instructionsProvider = (intentOf: IntentOf, base: ModelProvider): ModelProvider =>
-  instructionsAsMessages(base, (request) => instructionMessages(intentOf(request)));
+  shapingRequests(
+    instructionsAsMessages(base, (request) => instructionMessages(intentOf(request))),
+    (request) => withConversationComparison(request, intentOf(request).cache?.compareWith),
+  );
 
 const provider: ModelBackend["provider"] = (role, intentOf, base) =>
   role === "minter" ? minterProvider(intentOf, base) : instructionsProvider(intentOf, base);
 
-/**
- * The Responses API, through whatever provider the Runner resolved. It shapes the minter's and
- * Guardian's requests; the outcome reviewer still shapes its own.
- */
+const agents: Record<ModelRole, (intent: ModelIntent) => AgentShaping> = {
+  minter: minterAgent,
+  guardian: guardianAgent,
+  outcome_reviewer: outcomeReviewerAgent,
+};
+
+/** The Responses API, through whatever provider the Runner resolved. */
 export const openAIBackend = (): ModelBackend => ({
   model: (role) => (role === "minter" ? solModel : lunaModel),
-  agent: (role, intent) => (role === "minter" ? minterAgent(intent) : guardianAgent(intent)),
+  agent: (role, intent) => agents[role](intent),
   provider,
   // The prewarm keeps only the instructions' messages: the minter prewarms through its own
   // request's layout instead (`intent.prewarm`).

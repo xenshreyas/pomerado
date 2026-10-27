@@ -1,9 +1,8 @@
 import { Agent, RunContext, RunState, Runner, tool } from "@openai/agents";
 import { Cause, Duration, Effect, Exit } from "effect";
-import { guardianCompaction, makeGuardianSession } from "../guardian/session.js";
-import { lunaModel } from "../models/models.js";
-import { withReasoningContinuity } from "../models/reasoning-settings.js";
-import { instructionsAsMessages, prewarmInstructions } from "../models/cached-instructions.js";
+import { guardianCompactionTokens, makeGuardianSession } from "../guardian/session.js";
+import type { ModelBackend, ModelIntent } from "../models/backend.js";
+import { openAIBackend } from "../models/backends/openai.js";
 import { modelUsageCounts } from "../models/model-usage.js";
 import { failureDetail } from "../runtime/failure-detail.js";
 import { MintFailure } from "./contracts.js";
@@ -171,25 +170,23 @@ const turnFailure = (error: unknown, operation: string) =>
         failureDetail: failureDetail("mint_host_dependency_failed", { operation, error }),
       });
 
-/** The same instructions for every mint, so they end in a 12-hour cache breakpoint. */
-const cachedInstructions = [{ text: outcomeReviewerInstructions, breakpoint: "12h" as const }];
+/** The reviewer's needs from its model, the same for every turn and the prewarm. */
+const reviewerIntent = (promptCacheKey: string | undefined): ModelIntent => ({
+  effort: "medium",
+  continuity: true,
+  // One call at a time, so assessments of one write are numbered in order.
+  parallelToolCalls: false,
+  cache: promptCacheKey === undefined ? {} : { key: promptCacheKey },
+  // The same instructions for every mint, so they are cached longest.
+  instructionParts: [outcomeReviewerInstructions],
+  compactAtTokens: guardianCompactionTokens,
+});
 
 /** The reviewer agent's model, settings and instructions, the same for every turn and the prewarm. */
-const reviewerAgent = (promptCacheKey: string | undefined) => ({
+const reviewerAgent = (backend: ModelBackend, intent: ModelIntent) => ({
   name: "Pomerado outcome reviewer",
-  model: lunaModel,
-  modelSettings: withReasoningContinuity({
-    store: false,
-    reasoning: { effort: "medium", context: "all_turns" },
-    // The instructions are cached for 12 hours, the conversation after them implicitly.
-    promptCacheOptions: { mode: "implicit" },
-    // One call at a time, so assessments of one write are numbered in order.
-    parallelToolCalls: false,
-    providerData: {
-      ...guardianCompaction().samplingParams({ model: lunaModel }),
-      ...(promptCacheKey === undefined ? {} : { prompt_cache_key: promptCacheKey }),
-    },
-  }),
+  model: backend.model("outcome_reviewer"),
+  modelSettings: backend.agent("outcome_reviewer", intent).modelSettings,
   instructions: outcomeReviewerInstructions,
 });
 
@@ -205,11 +202,11 @@ const prewarmTools: OutcomeReviewTools = {
 };
 
 /**
- * The core outcome reviewer: a GPT-6 Luna agent on its own continuing conversation, kept with
- * the same session building blocks as Guardian's (provider compaction, an interrupted turn
- * closed before the next), with read-only tools and no browser, shell or website access.
+ * The outcome reviewer whose requests `backend` shapes, with `makeOpenAIOutcomeReviewer`'s
+ * options after it: the model provider there is the base the backend wraps.
  */
-export const makeOpenAIOutcomeReviewer = (
+export const makeOutcomeReviewer = (
+  backend: ModelBackend,
   options: OutcomeReviewerModelOptions = {},
 ): OutcomeReviewerModel & {
   /**
@@ -220,12 +217,14 @@ export const makeOpenAIOutcomeReviewer = (
 } => {
   const maxTurns = options.maxTurns ?? 32;
   const timeout = Duration.decode(options.turnTimeout ?? "5 minutes");
+  const intent = reviewerIntent(options.promptCacheKey);
   return {
     prewarm: () =>
       Effect.tryPromise({
         try: async (signal) => {
+          const prewarm = { ...intent, prewarm: true };
           const agent = new Agent({
-            ...reviewerAgent(options.promptCacheKey),
+            ...reviewerAgent(backend, prewarm),
             tools: reviewerTools(prewarmTools, () => signal),
           });
           const runner = new Runner({
@@ -235,11 +234,12 @@ export const makeOpenAIOutcomeReviewer = (
             tracingDisabled: true,
             traceIncludeSensitiveData: false,
           });
-          const usage = await prewarmInstructions(
+          const usage = await backend.prewarm(
+            "outcome_reviewer",
+            prewarm,
             runner.config.modelProvider,
-            1,
             async (provider) => {
-              runner.config.modelProvider = instructionsAsMessages(provider, cachedInstructions);
+              runner.config.modelProvider = provider;
               return runner.run(agent, "Prewarm the cached instructions.", { signal, maxTurns: 1 });
             },
           );
@@ -258,7 +258,7 @@ export const makeOpenAIOutcomeReviewer = (
             interruption: reviewerInterruption,
           });
           const agent = new Agent({
-            ...reviewerAgent(options.promptCacheKey),
+            ...reviewerAgent(backend, intent),
             tools: reviewerTools(turn.tools, () => signal),
           });
           const runner = new Runner({
@@ -271,7 +271,11 @@ export const makeOpenAIOutcomeReviewer = (
           const items = await Effect.runPromise(session.input(turn.input), { signal });
           const state = new RunState(new RunContext(), items, agent, maxTurns);
           runner.config.modelProvider = session.provider(
-            instructionsAsMessages(runner.config.modelProvider, cachedInstructions),
+            backend.provider(
+              "outcome_reviewer",
+              () => session.compared(intent),
+              runner.config.modelProvider,
+            ),
             () => state.history,
             () => signal,
           );
@@ -295,3 +299,12 @@ export const makeOpenAIOutcomeReviewer = (
       ),
   };
 };
+
+/**
+ * The core outcome reviewer: a GPT-6 Luna agent on its own continuing conversation, kept with
+ * the same session building blocks as Guardian's (provider compaction, an interrupted turn
+ * closed before the next), with read-only tools and no browser, shell or website access.
+ */
+export const makeOpenAIOutcomeReviewer = (
+  options: OutcomeReviewerModelOptions = {},
+): ReturnType<typeof makeOutcomeReviewer> => makeOutcomeReviewer(openAIBackend(), options);
