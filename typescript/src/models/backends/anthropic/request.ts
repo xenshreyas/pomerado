@@ -15,6 +15,8 @@ interface Turn {
 const maxTokens = 64_000;
 /** A build pauses for longer than five minutes between turns, such as while a page loads. */
 const cacheControl = { type: "ephemeral", ttl: "1h" } as const;
+const compactionBeta = "compact-2026-01-12";
+const bindingBeta = "thinking-binding-controls-2026-08-01";
 
 export interface AnthropicRequest {
   readonly params: Anthropic.Beta.MessageCreateParamsNonStreaming;
@@ -28,13 +30,20 @@ const text = (part: { readonly type: string; readonly text?: string }) => {
   return { type: "text" as const, text: part.text };
 };
 
+const texts = (blocks: readonly Block[]) =>
+  blocks.flatMap((block) => (block.type === "text" ? [block] : []));
+
+/** An item this backend wrote; an OpenAI reasoning or compaction item has no Claude form. */
+const ours = (providerData: Record<string, unknown> | undefined) =>
+  providerData?.["backend"] === "anthropic";
+
 /**
  * An item this backend wrote holds Claude's block exactly as it was returned. Claude binds each
  * thinking block to the bytes of the conversation before it, `tool_use` input and text included,
  * so a stored block replays as it is; an item from elsewhere is rebuilt from its fields.
  */
 const storedBlock = (providerData: Record<string, unknown> | undefined): Block | undefined =>
-  providerData?.["backend"] === "anthropic" ? (providerData["block"] as Block) : undefined;
+  ours(providerData) ? (providerData?.["block"] as Block) : undefined;
 
 const turnOf = (item: AgentInputItem): Turn | undefined => {
   const stored = storedBlock(item.providerData);
@@ -99,6 +108,11 @@ const turnOf = (item: AgentInputItem): Turn | undefined => {
       };
     case "reasoning":
       return stored === undefined ? undefined : { role: "assistant", blocks: [stored] };
+    // The SDK's compaction item holds Claude's compaction block as JSON.
+    case "compaction":
+      return ours(item.providerData)
+        ? { role: "assistant", blocks: [JSON.parse(item.encrypted_content) as Block] }
+        : undefined;
     default:
       return undefined;
   }
@@ -119,20 +133,25 @@ const conversation = (input: ModelRequest["input"]) => {
   for (const item of items) {
     const turn = turnOf(item);
     if (turn === undefined) dropped.push(item.type ?? "message");
-    else if (turn.role === "system" && turns.length === 0)
-      system.push(...turn.blocks.flatMap((block) => (block.type === "text" ? [block] : [])));
+    else if (turn.role === "system" && turns.length === 0) system.push(...texts(turn.blocks));
     else if (turns.at(-1)?.role === turn.role) turns.at(-1)?.blocks.push(...turn.blocks);
     else turns.push({ role: turn.role, blocks: [...turn.blocks] });
   }
   const messages = turns.map(({ role, blocks }): Anthropic.Beta.BetaMessageParam => {
-    if (role === "system")
-      return { role, content: blocks.flatMap((block) => (block.type === "text" ? [block] : [])) };
+    if (role === "system") return { role, content: texts(blocks) };
     const results = blocks.filter((block) => block.type === "tool_result");
     const rest = blocks.filter((block) => block.type !== "tool_result");
     return { role, content: [...results, ...rest] };
   });
-  if (messages[0]?.role !== "user")
-    throw new Error("A Claude conversation must start with a user message");
+  // The SDK sends a compacted conversation from its compaction on, which Claude reads as the
+  // start of the conversation.
+  const first = messages[0];
+  const compacted =
+    first?.role === "assistant" &&
+    Array.isArray(first.content) &&
+    first.content[0]?.type === "compaction";
+  if (first?.role !== "user" && !compacted)
+    throw new Error("A Claude conversation must start with a user message or a compaction");
   return { system, messages, dropped };
 };
 
@@ -214,7 +233,13 @@ export const anthropicRequest = (
       ...(system.length === 0 ? {} : { system }),
       messages,
       ...(tools.length === 0 ? {} : { tools, tool_choice: toolChoice(request, intent) }),
-      thinking: { type: "adaptive", display: "summarized" },
+      // A history edit then costs the thinking blocks after it, not the build; the response's
+      // `input_transformations` names each block the API dropped.
+      thinking: {
+        type: "adaptive",
+        display: "summarized",
+        block_binding: { prefix_mismatch_behavior: "drop_block" },
+      },
       output_config: {
         effort: intent.effort,
         ...(request.outputType === "text"
@@ -222,6 +247,19 @@ export const anthropicRequest = (
           : { format: { type: "json_schema", schema: claudeSchema(request.outputType.schema) } }),
       },
       cache_control: cacheControl,
+      ...(intent.compactAtTokens === undefined
+        ? {}
+        : {
+            context_management: {
+              edits: [
+                {
+                  type: "compact_20260112",
+                  trigger: { type: "input_tokens", value: intent.compactAtTokens },
+                },
+              ],
+            },
+          }),
+      betas: intent.compactAtTokens === undefined ? [bindingBeta] : [compactionBeta, bindingBeta],
     },
     dropped,
   };

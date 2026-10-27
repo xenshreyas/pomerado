@@ -58,6 +58,12 @@ const outputItem = (
         content: block.type === "thinking" ? [{ type: "input_text", text: block.thinking }] : [],
         providerData,
       };
+    case "compaction":
+      return {
+        type: "compaction",
+        encrypted_content: JSON.stringify(block),
+        providerData: { backend: "anthropic", model },
+      };
     default:
       throw new Error(`Claude returned a ${block.type} block, which the backend does not read`);
   }
@@ -71,6 +77,7 @@ const outputItem = (
 export const anthropicResponse = (
   message: Anthropic.Beta.BetaMessage,
   requestId: string | undefined,
+  dropped: readonly string[],
 ): ModelResponse & {
   readonly responseId: string;
   readonly output: protocol.OutputModelItem[];
@@ -98,5 +105,11 @@ export const anthropicResponse = (
     output: message.content.map((block) => outputItem(block, message.model)),
     responseId: message.id,
     ...(requestId === undefined ? {} : { requestId }),
+    providerData: {
+      ...(dropped.length === 0 ? {} : { droppedInputItems: dropped }),
+      ...(message.input_transformations?.length
+        ? { inputTransformations: message.input_transformations }
+        : {}),
+    },
   };
 };
