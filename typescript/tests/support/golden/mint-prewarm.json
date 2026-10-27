@@ -1,0 +1,58 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "5e166e28f2d81a50d9383e7554223a0e0434e8115d239f0ce3089e2412026da7",
+    "body": {
+      "model": "{{solModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:e04bc4eef996…, 4797 chars> You are operating inside an isolated sandbox workspace.\n\n# W…"
+            },
+            {
+              "type": "input_text",
+              "text": "Synthetic static reference.",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "fffb025e78cb5d4426233ff836379d7a19c6e0100a5361acd74c43f1eda41aad",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "prewarm": true
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 268000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  }
+]
