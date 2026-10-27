@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { Usage, type ModelResponse, type protocol } from "@openai/agents";
+import { applyPatchCall, applyPatchName } from "./apply-patch.js";
 import { ModelInputTooLarge, ModelOutputTruncated, ModelRefusal } from "./failure.js";
 
 /**
@@ -41,6 +42,7 @@ const outputItem = (
         providerData,
       };
     case "tool_use":
+      if (block.name === applyPatchName) return { ...applyPatchCall(block), providerData };
       return {
         type: "function_call",
         callId: block.id,
