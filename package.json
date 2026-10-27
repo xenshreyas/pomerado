@@ -491,6 +491,16 @@
       "import": "./dist/typescript/src/mint/write-session.js",
       "default": "./dist/typescript/src/mint/write-session.js"
     },
+    "./core/models/backend": {
+      "types": "./dist/typescript/src/models/backend.d.ts",
+      "import": "./dist/typescript/src/models/backend.js",
+      "default": "./dist/typescript/src/models/backend.js"
+    },
+    "./core/models/backends/openai": {
+      "types": "./dist/typescript/src/models/backends/openai.d.ts",
+      "import": "./dist/typescript/src/models/backends/openai.js",
+      "default": "./dist/typescript/src/models/backends/openai.js"
+    },
     "./core/models/model-diagnostic-failure": {
       "types": "./dist/typescript/src/models/model-diagnostic-failure.d.ts",
       "import": "./dist/typescript/src/models/model-diagnostic-failure.js",
