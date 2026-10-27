@@ -4,6 +4,7 @@ import { createPomerado } from "../../src/standalone/pomerado.js";
 import { makeInputAsker } from "../../src/inputs/callback.js";
 import type { InputRequest } from "../../src/runtime/input-request.js";
 import type { PlaywrightOptions } from "../../src/execution/playwright-execute.js";
+import type { ModelBackend } from "../../src/models/backend.js";
 import {
   authorityOf,
   contextOf,
@@ -29,6 +30,8 @@ export const mint = async (options: {
   readonly effect: "read" | "write";
   readonly url: string;
   readonly turns: readonly Turn[];
+  /** A model backend the minter runs on instead of playing `turns`. */
+  readonly modelBackend?: ModelBackend;
   readonly guardian: ReturnType<typeof recordingGuardian>;
   /** The outcome reviewer; by default one that never assesses. */
   readonly reviewer?: ModelProvider;
@@ -50,7 +53,9 @@ export const mint = async (options: {
       Effect.gen(function* () {
         const service = yield* createPomerado({
           ...(options.browser === undefined ? {} : { browser: options.browser }),
-          minterProvider: minter,
+          ...(options.modelBackend === undefined
+            ? { minterProvider: minter }
+            : { modelBackend: options.modelBackend }),
           guardianProvider: options.guardian.provider,
           outcomeReviewerProvider: options.reviewer ?? quietReviewer,
           ask: makeInputAsker((request) =>
