@@ -15,7 +15,7 @@ import {
   latestConfigurationEffort,
 } from "../models/cached-instructions.js";
 import { leadingPrivateAfter } from "./review-layout.js";
-import type { ModelIntent } from "../models/backend.js";
+import type { BackendFeatures, ModelIntent } from "../models/backend.js";
 
 /** Private continuation state; complete original exchanges remain in protected model records. */
 export const GuardianSessionSnapshot = Schema.Struct({
@@ -522,10 +522,21 @@ export const makeGuardianSession = (options: GuardianSessionOptions) => {
             };
     },
   };
+  /** A backend without background compaction leaves the conversation to its own compaction. */
+  const requestCompactionOnly: SessionCompaction = {
+    ...compaction,
+    before: (_model, sent) => Effect.succeed({ sent }),
+    backstopped: (request) => request,
+  };
   return {
-    provider: (provider: ModelProvider, state: () => AgentInputItem[], signal: () => AbortSignal) =>
+    provider: (
+      provider: ModelProvider,
+      state: () => AgentInputItem[],
+      signal: () => AbortSignal,
+      features?: BackendFeatures,
+    ) =>
       continuationProvider({
-        compaction,
+        compaction: features?.backgroundCompaction === false ? requestCompactionOnly : compaction,
         provider,
         state,
         signal,

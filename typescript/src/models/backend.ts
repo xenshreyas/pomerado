@@ -51,6 +51,22 @@ export interface AgentShaping {
   readonly capabilities: readonly Capability[];
 }
 
+/** The intent features a backend honors. A caller skips the work for one its backend lacks. */
+export interface BackendFeatures {
+  /**
+   * Compacting a conversation apart from its requests: the minter's idle compaction, and Guardian's
+   * compaction before a request and its backstop.
+   */
+  readonly backgroundCompaction: boolean;
+  /** Reporting a response's prompt cache reuse against an earlier one (`cache.compareWith`). */
+  readonly cacheDiagnostics: boolean;
+  /**
+   * A review's effort can change within a conversation and keep its cached prefix. Without it, each
+   * request carries its review's effort as `intent.effort`.
+   */
+  readonly effortChangeKeepsCache: boolean;
+}
+
 /**
  * Pomerado's module for one model provider: the agents describe what they need as a
  * `ModelIntent`, and the backend owns how its provider's requests say it.
@@ -60,24 +76,26 @@ export interface ModelBackend {
   readonly model: (role: ModelRole) => string;
   readonly agent: (role: ModelRole, intent: ModelIntent) => AgentShaping;
   /**
-   * The provider a role's Runner uses: the backend's shaping over `base`, the provider the Runner
-   * resolved (the host's option, or the SDK default resolved at call time), with each request's
-   * intent from `intentOf`.
+   * The provider a role's Runner uses: the backend's shaping over `base`, with each request's
+   * intent from `intentOf`. `base` is the host's own provider option for the role, when it sets
+   * one; without it the backend uses its own default.
    */
   readonly provider: (
     role: ModelRole,
     intentOf: (request: ModelRequest) => ModelIntent,
-    base: ModelProvider,
+    base?: ModelProvider,
   ) => ModelProvider;
+  readonly features: BackendFeatures;
   /**
    * Writes a role's cached instructions without generating output: `run` runs the role's agent
    * once through the provider it is given, and the backend sends that run's request as the
-   * prewarm. Resolves with its token counts.
+   * prewarm. Resolves with its token counts. A backend that can't prewarm leaves it out, and its
+   * callers skip the prewarm.
    */
-  readonly prewarm: (
+  readonly prewarm?: (
     role: ModelRole,
     intent: ModelIntent,
-    base: ModelProvider,
+    base: ModelProvider | undefined,
     run: (provider: ModelProvider) => Promise<unknown>,
   ) => Promise<Usage>;
 }

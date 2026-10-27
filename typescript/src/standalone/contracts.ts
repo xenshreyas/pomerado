@@ -1,4 +1,5 @@
 import type { ModelProvider } from "@openai/agents";
+import type { ModelBackend } from "../models/backend.js";
 import { type Effect, Schema } from "effect";
 import { ExpectedConfirms } from "../browser/dialogs/expected.js";
 import { SignInRecipe } from "../destinations/sign-in-recipe.js";
@@ -17,6 +18,11 @@ export interface PomeradoOptions {
    * calls keep the executor's 1 MiB result limit (`resultLimitBytes`).
    */
   readonly browser?: Omit<PlaywrightOptions, "cdp" | "resultLimitBytes">;
+  /**
+   * The model backend every agent runs on, `openAIBackend()` by default. Each agent's provider
+   * option below is the base it wraps.
+   */
+  readonly modelBackend?: ModelBackend;
   readonly minterProvider?: ModelProvider;
   readonly guardianProvider?: ModelProvider;
   /** The outcome reviewer's model provider, which judges whether each write took effect. */

@@ -1,4 +1,4 @@
-import { Agent, RunContext, RunState, Runner, tool } from "@openai/agents";
+import { Agent, RunContext, RunState, Runner, tool, Usage } from "@openai/agents";
 import { Cause, Duration, Effect, Exit } from "effect";
 import { guardianCompactionTokens, makeGuardianSession } from "../guardian/session.js";
 import type { ModelBackend, ModelIntent } from "../models/backend.js";
@@ -222,6 +222,9 @@ export const makeOutcomeReviewer = (
     prewarm: () =>
       Effect.tryPromise({
         try: async (signal) => {
+          // A backend that can't prewarm caches nothing, so the prewarm counts none.
+          const send = backend.prewarm;
+          if (send === undefined) return modelUsageCounts(new Usage());
           const prewarm = { ...intent, prewarm: true };
           const agent = new Agent({
             ...reviewerAgent(backend, prewarm),
@@ -234,10 +237,10 @@ export const makeOutcomeReviewer = (
             tracingDisabled: true,
             traceIncludeSensitiveData: false,
           });
-          const usage = await backend.prewarm(
+          const usage = await send(
             "outcome_reviewer",
             prewarm,
-            runner.config.modelProvider,
+            options.modelProvider,
             async (provider) => {
               runner.config.modelProvider = provider;
               return runner.run(agent, "Prewarm the cached instructions.", { signal, maxTurns: 1 });
@@ -273,11 +276,12 @@ export const makeOutcomeReviewer = (
           runner.config.modelProvider = session.provider(
             backend.provider(
               "outcome_reviewer",
-              () => session.compared(intent),
-              runner.config.modelProvider,
+              () => (backend.features.cacheDiagnostics ? session.compared(intent) : intent),
+              options.modelProvider,
             ),
             () => state.history,
             () => signal,
+            backend.features,
           );
           const result = await runner.run(agent, state, { signal, maxTurns });
           await Effect.runPromise(session.observe(result.history), { signal });

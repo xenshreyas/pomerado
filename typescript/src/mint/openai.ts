@@ -1345,7 +1345,9 @@ const openAIMinter = (
                 }).pipe(Effect.ignore) ?? Effect.void
               );
             };
-            const idle = turn.effectQuestion
+            // An effect question and a backend without background compaction run none.
+            const background = !turn.effectQuestion && backend.features.backgroundCompaction;
+            const idle = !background
               ? undefined
               : makeIdleCompaction({
                   watermarkTokens: mintIdleCompactionTokens,
@@ -1368,7 +1370,9 @@ const openAIMinter = (
               ...intent,
               cache: {
                 ...intent.cache,
-                ...(lastResponseId === undefined ? {} : { compareWith: lastResponseId }),
+                ...(lastResponseId === undefined || !backend.features.cacheDiagnostics
+                  ? {}
+                  : { compareWith: lastResponseId }),
               },
               ...(turn.effectQuestion
                 ? {}
@@ -1379,7 +1383,7 @@ const openAIMinter = (
                   }),
             });
             // Below the observer, so a record keeps the SDK's own request.
-            const shaped = backend.provider("minter", intentOf, runner.config.modelProvider);
+            const shaped = backend.provider("minter", intentOf, modelProvider);
             const provider = diagnostics?.provider(shaped) ?? shaped;
             runner.config.modelProvider = {
               getModel: async (name) => {

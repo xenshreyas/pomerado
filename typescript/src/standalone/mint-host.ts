@@ -10,8 +10,9 @@ import {
 } from "../mint/contracts.js";
 import { runMint } from "../mint/harness.js";
 import { mintSourceSyntaxFailure } from "../mint/operation-source.js";
-import { makeOpenAIMinter } from "../mint/openai.js";
-import { makeOpenAIOutcomeReviewer } from "../mint/outcome-review-openai.js";
+import { makeMinter } from "../mint/openai.js";
+import { makeOutcomeReviewer } from "../mint/outcome-review-openai.js";
+import { openAIBackend } from "../models/backends/openai.js";
 import {
   exampleInputRefusal,
   preflightTestInput,
@@ -65,7 +66,7 @@ const mintDependencies = (state: MintState, publicationDecisions: PublicationDec
     instructions: authoring.instructions,
     skills: authoring.skills,
     projection,
-    model: makeOpenAIMinter(options.minterProvider),
+    model: makeMinter(options.modelBackend ?? openAIBackend(), options.minterProvider),
     deadline,
     autofillSignIn: true,
     requestLogin: () => Effect.succeed("inspect"),
@@ -188,7 +189,8 @@ const mintDependencies = (state: MintState, publicationDecisions: PublicationDec
     publish: mintPublication(state),
     // The local host keeps no recovery checkpoint; its write completion reads the assessments.
     outcomeReview: {
-      model: makeOpenAIOutcomeReviewer(
+      model: makeOutcomeReviewer(
+        options.modelBackend ?? openAIBackend(),
         options.outcomeReviewerProvider === undefined
           ? {}
           : { modelProvider: options.outcomeReviewerProvider },
