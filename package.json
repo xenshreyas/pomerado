@@ -1038,6 +1038,7 @@
     "tldts": "7.4.16"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "1.3.0",
     "@modelcontextprotocol/client": "2.3.1",
     "@openai/agents": "0.18.0",
     "@playwright/test": "1.63.0",
@@ -1048,12 +1049,16 @@
     "vitest": "5.0.5"
   },
   "peerDependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@openai/agents": "0.18.0",
     "effect": "3.22.2",
     "patchright": "1.63.0",
     "vitest": "^5.0.2"
   },
   "peerDependenciesMeta": {
+    "@anthropic-ai/sdk": {
+      "optional": true
+    },
     "patchright": {
       "optional": true
     },
