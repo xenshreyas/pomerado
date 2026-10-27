@@ -16,6 +16,14 @@ const thinking = { type: "thinking", thinking: "Read the cart first", signature:
 const redacted = { type: "redacted_thinking", data: "opaque" };
 const toolUse = { type: "tool_use", id: "toolu_1", name: "read_cart", input: { page: 2 } };
 
+const result: AgentInputItem = {
+  type: "function_call_result",
+  callId: "toolu_1",
+  name: "read_cart",
+  status: "completed",
+  output: "2 items",
+};
+
 const collect = async (events: AsyncIterable<StreamEvent>) => {
   const seen: StreamEvent[] = [];
   for await (const event of events) seen.push(event);
@@ -42,6 +50,11 @@ describe("makeAnthropicModel", () => {
         role: "assistant",
         status: "completed",
         content: [{ type: "output_text", text: "Done" }],
+        providerData: {
+          backend: "anthropic",
+          model: claudeModel,
+          block: { type: "text", text: "Done" },
+        },
       },
     ]);
     expect(response.responseId).toBe("msg_1");
@@ -102,14 +115,8 @@ describe("makeAnthropicModel", () => {
       name: "read_cart",
       arguments: '{"page":2}',
       status: "completed",
+      providerData: { backend: "anthropic", model: claudeModel, block: toolUse },
     });
-    const result: AgentInputItem = {
-      type: "function_call_result",
-      callId: "toolu_1",
-      name: "read_cart",
-      status: "completed",
-      output: "2 items",
-    };
     // A saved run state goes through JSON, so the replay must survive it.
     const history = JSON.parse(JSON.stringify(first.output)) as AgentInputItem[];
     await model.getResponse(
@@ -120,6 +127,37 @@ describe("makeAnthropicModel", () => {
     expect(replayed).toBe(JSON.stringify([thinking, redacted, toolUse]));
     expect(messages[2]?.content).toStrictEqual([
       { type: "tool_result", tool_use_id: "toolu_1", content: "2 items" },
+    ]);
+  });
+
+  it("replays text and tool calls as Claude returned them, not as a host holds them", async () => {
+    // Escapes, non-ASCII text and a float written with a fraction, as Claude may send them.
+    const input = '{"path":"cart\\/2","label":"caf\\u00e9 über","ratio":1.0}';
+    const text = { type: "text", text: "Reading  page 2 \n" };
+    const { model, bodies } = claudeWire([
+      claudeStream({ content: [text, { ...toolUse, input }], stopReason: "tool_use" }),
+      claudeStream({ content: [{ type: "text", text: "Done" }] }),
+    ]);
+    const first = await model.getResponse(sdkRequest("Read the cart"));
+    const received = JSON.stringify(first.output.map((item) => item.providerData?.["block"]));
+    // A host that normalizes what it holds, its whitespace and key order, changes no replayed byte.
+    const normalize = (item: AgentInputItem): AgentInputItem => {
+      if (item.type === "function_call")
+        return { ...item, arguments: '{"ratio":1,"label":"café über","path":"cart/2"}' };
+      if (item.type === "message" && item.role === "assistant")
+        return { ...item, content: [{ type: "output_text", text: "Reading page 2" }] };
+      return item;
+    };
+    const held = JSON.parse(JSON.stringify(first.output)) as AgentInputItem[];
+    const normalized = held.map(normalize);
+    await model.getResponse(
+      sdkRequest([{ role: "user", content: "Read the cart" }, ...normalized, result]),
+    );
+    const messages = bodies[1]?.["messages"] as { content: unknown[] }[];
+    expect(JSON.stringify(messages[1]?.content)).toBe(received);
+    expect(messages[1]?.content).toStrictEqual([
+      text,
+      { ...toolUse, input: { path: "cart/2", label: "café über", ratio: 1 } },
     ]);
   });
 
