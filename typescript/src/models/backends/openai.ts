@@ -1,6 +1,9 @@
-import type { ModelRequest } from "@openai/agents";
+import type { ModelProvider, ModelRequest } from "@openai/agents";
 import { StaticCompactionPolicy, compaction } from "@openai/agents/sandbox";
-import type { ModelBackend } from "../backend.js";
+import { guardianReviewSettings } from "../../guardian/openai-input.js";
+import type { AgentShaping, ModelBackend, ModelIntent } from "../backend.js";
+import { instructionsAsMessages, prewarmInstructions } from "../cached-instructions.js";
+import type { InstructionsMessage } from "../cached-instructions.js";
 import { lunaModel, solModel } from "../models.js";
 import {
   withAllowedTools,
@@ -25,65 +28,104 @@ export const mintCompaction = (): ReturnType<typeof compaction> =>
  */
 const staticPrefixTtl = "12h";
 
+type IntentOf = (request: ModelRequest) => ModelIntent;
+
+const minterAgent = (intent: ModelIntent): AgentShaping => ({
+  // Summaries and encrypted reasoning continuity are always on; absence of a
+  // summary is recorded per response. Reasoning from earlier turns stays rendered
+  // after a continuation or host notice, so the cached prompt is never rewritten
+  // from the first earlier reasoning item; the applied context is recorded per call.
+  // The static prefix carries its own 12-hour breakpoint (withCachedPrefix); the rest of
+  // the conversation is cached at the implicit breakpoint.
+  modelSettings: withPromptCache(
+    withReasoningContinuity({
+      parallelToolCalls: intent.parallelToolCalls,
+      reasoning: { effort: intent.effort, context: "all_turns" },
+    }),
+    {
+      mode: "implicit",
+      ...(intent.prewarm ? { prewarm: true } : {}),
+      ...(intent.cache?.key === undefined ? {} : { key: intent.cache.key }),
+    },
+  ),
+  // The minter's threshold is the one mintCompaction holds.
+  capabilities: intent.compactAtTokens === undefined ? [] : [mintCompaction()],
+});
+
+const minterProvider = (intentOf: IntentOf, sdkProvider: ModelProvider): ModelProvider => {
+  /**
+   * What every request sends, the background compaction's included: the instructions and
+   * the host's static context lead as one developer message ending at a 12-hour cache
+   * breakpoint, shared by every job of the release, ahead of everything else, a
+   * compaction item included; and a build turn may call only the tools it offers.
+   */
+  const layout = (request: ModelRequest): ModelRequest => {
+    const intent = intentOf(request);
+    const prefixed = withCachedPrefix(request, intent.staticContext ?? [], staticPrefixTtl);
+    // A prewarm sends the static prefix alone; which tools may run is no part of it.
+    if (intent.prewarm) return { ...prefixed, input: prefixed.input.slice(0, 1) };
+    // After the run's first turn, each request asks the provider to compare its cache
+    // reuse with the last turn's response (prompt_cache_diagnostics).
+    const lastResponseId = intent.cache?.compareWith;
+    const compared =
+      lastResponseId === undefined
+        ? prefixed
+        : withCacheComparison(prefixed, lastResponseId);
+    const offered = intent.offeredTools;
+    return offered === undefined
+      ? compared
+      : withAllowedTools(compared, (name) => offered.includes(name));
+  };
+  return {
+    getModel: async (name) => {
+      const model = await sdkProvider.getModel(name);
+      return {
+        getResponse: (request) => model.getResponse(layout(request)),
+        getStreamedResponse: (request) => model.getStreamedResponse(layout(request)),
+      };
+    },
+  };
+};
+
 /**
- * The Responses API, through whatever provider the Runner resolved. It shapes the minter's
- * requests; Guardian and the outcome reviewer still shape their own.
+ * The instructions as developer messages: the shared part, the same under every build, ends in a
+ * 12-hour cache breakpoint, so every build reads it from the cache.
+ */
+const instructionMessages = (intent: ModelIntent): readonly InstructionsMessage[] =>
+  (intent.instructionParts ?? []).map((text, index) =>
+    index === 0 ? { text, breakpoint: "12h" } : { text },
+  );
+
+const guardianAgent = (intent: ModelIntent): AgentShaping => ({
+  // The request's effort stays the default whatever the review's, so its cached prefix holds:
+  // a review at another effort carries a configuration update, which Guardian writes. A
+  // continuing conversation compacts at Guardian's threshold, the intent's compactAtTokens.
+  modelSettings: guardianReviewSettings(intent.continuity, intent.cache?.key),
+  capabilities: [],
+});
+
+/**
+ * The instructions travel as developer messages, the shared ones ending in a cache breakpoint,
+ * right above the model, so every observer still sees them as instructions.
+ */
+const instructionsProvider = (intentOf: IntentOf, base: ModelProvider): ModelProvider =>
+  instructionsAsMessages(base, (request) => instructionMessages(intentOf(request)));
+
+const provider: ModelBackend["provider"] = (role, intentOf, base) =>
+  role === "minter" ? minterProvider(intentOf, base) : instructionsProvider(intentOf, base);
+
+/**
+ * The Responses API, through whatever provider the Runner resolved. It shapes the minter's and
+ * Guardian's requests; the outcome reviewer still shapes its own.
  */
 export const openAIBackend = (): ModelBackend => ({
   model: (role) => (role === "minter" ? solModel : lunaModel),
-  agent: (_role, intent) => ({
-    // Summaries and encrypted reasoning continuity are always on; absence of a
-    // summary is recorded per response. Reasoning from earlier turns stays rendered
-    // after a continuation or host notice, so the cached prompt is never rewritten
-    // from the first earlier reasoning item; the applied context is recorded per call.
-    // The static prefix carries its own 12-hour breakpoint (withCachedPrefix); the rest of
-    // the conversation is cached at the implicit breakpoint.
-    modelSettings: withPromptCache(
-      withReasoningContinuity({
-        parallelToolCalls: intent.parallelToolCalls,
-        reasoning: { effort: intent.effort, context: "all_turns" },
-      }),
-      {
-        mode: "implicit",
-        ...(intent.prewarm ? { prewarm: true } : {}),
-        ...(intent.cache?.key === undefined ? {} : { key: intent.cache.key }),
-      },
+  agent: (role, intent) => (role === "minter" ? minterAgent(intent) : guardianAgent(intent)),
+  provider,
+  // The prewarm keeps only the instructions' messages: the minter prewarms through its own
+  // request's layout instead (`intent.prewarm`).
+  prewarm: (role, intent, base, run) =>
+    prewarmInstructions(base, intent.instructionParts?.length ?? 0, (prewarming) =>
+      run(provider(role, () => intent, prewarming)),
     ),
-    // The minter's threshold is the one mintCompaction holds.
-    capabilities: intent.compactAtTokens === undefined ? [] : [mintCompaction()],
-  }),
-  provider: (_role, intentOf, sdkProvider) => {
-    /**
-     * What every request sends, the background compaction's included: the instructions and
-     * the host's static context lead as one developer message ending at a 12-hour cache
-     * breakpoint, shared by every job of the release, ahead of everything else, a
-     * compaction item included; and a build turn may call only the tools it offers.
-     */
-    const layout = (request: ModelRequest): ModelRequest => {
-      const intent = intentOf(request);
-      const prefixed = withCachedPrefix(request, intent.staticContext ?? [], staticPrefixTtl);
-      // A prewarm sends the static prefix alone; which tools may run is no part of it.
-      if (intent.prewarm) return { ...prefixed, input: prefixed.input.slice(0, 1) };
-      // After the run's first turn, each request asks the provider to compare its cache
-      // reuse with the last turn's response (prompt_cache_diagnostics).
-      const lastResponseId = intent.cache?.compareWith;
-      const compared =
-        lastResponseId === undefined
-          ? prefixed
-          : withCacheComparison(prefixed, lastResponseId);
-      const offered = intent.offeredTools;
-      return offered === undefined
-        ? compared
-        : withAllowedTools(compared, (name) => offered.includes(name));
-    };
-    return {
-      getModel: async (name) => {
-        const model = await sdkProvider.getModel(name);
-        return {
-          getResponse: (request) => model.getResponse(layout(request)),
-          getStreamedResponse: (request) => model.getStreamedResponse(layout(request)),
-        };
-      },
-    };
-  },
 });

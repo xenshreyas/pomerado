@@ -86,7 +86,7 @@ export const guardianContinuityPolicy =
   "as byte-identical to it. An interrupted review grants no approval.";
 
 /** The conversation size, in input tokens, at which Guardian compacts it; the minter's too. */
-const guardianCompactionTokens = 240_000;
+export const guardianCompactionTokens = 240_000;
 
 /**
  * The provider-side compaction at the same threshold, with no additional tools or sandbox. It

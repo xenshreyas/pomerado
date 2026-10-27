@@ -45,20 +45,22 @@ export const developerMessage = ({ text, breakpoint }: InstructionsMessage): Age
  * request's input instead of as top-level `instructions`, which cannot hold a cache breakpoint.
  * `messages` are the instructions the agent was built with, split where the cache should break:
  * observers above this provider still see them as the request's instructions, and a request one
- * of them sends again, such as a compaction request, gets the same messages. Put it directly
- * above the provider that calls the model.
+ * of them sends again, such as a compaction request, gets the same messages. `messages` may be
+ * read from each request instead. Put it directly above the provider that calls the model.
  */
 export const instructionsAsMessages = (
   provider: ModelProvider,
-  messages: readonly InstructionsMessage[],
+  messages:
+    | readonly InstructionsMessage[]
+    | ((request: ModelRequest) => readonly InstructionsMessage[]),
 ): ModelProvider => {
-  const items = messages.map(developerMessage);
+  const messagesOf = typeof messages === "function" ? messages : () => messages;
   const sent = (request: ModelRequest): ModelRequest => {
     const { systemInstructions: _instructions, ...rest } = request;
     return {
       ...rest,
       input: [
-        ...items,
+        ...messagesOf(request).map(developerMessage),
         ...(typeof request.input === "string"
           ? [{ role: "user" as const, type: "message" as const, content: request.input }]
           : request.input),
