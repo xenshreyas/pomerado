@@ -1,4 +1,4 @@
-import type { ModelProvider, ModelRequest, ModelSettings } from "@openai/agents";
+import type { ModelProvider, ModelRequest, ModelSettings, Usage } from "@openai/agents";
 import type { Capability } from "@openai/agents/sandbox";
 
 /** Which agent a model call is for. */
@@ -10,7 +10,10 @@ export type ModelRole = "minter" | "guardian" | "outcome_reviewer";
  */
 export interface ModelIntent {
   readonly effort: "low" | "medium";
-  /** Reasoning carried from each turn to the next. */
+  /**
+   * Reasoning from earlier turns stays in view, as in a conversation that continues across
+   * reviews, not only the current turn's.
+   */
   readonly continuity: boolean;
   /** Whether one response may call several tools. */
   readonly parallelToolCalls: boolean;
@@ -24,6 +27,12 @@ export interface ModelIntent {
    * them, such as the minter's static context.
    */
   readonly staticContext?: readonly string[];
+  /**
+   * The agent's instructions in the parts they join, with a blank line between, into its
+   * instructions, such as Guardian's shared policy, then the build's own. The first is the same
+   * for every conversation of a release, so it is cached longest.
+   */
+  readonly instructionParts?: readonly string[];
   /** The request's tools the model may call; the others are still sent. All, when absent. */
   readonly offeredTools?: readonly string[];
   /** The input size, in tokens, at which the provider compacts the conversation. */
@@ -38,6 +47,7 @@ export interface ModelIntent {
  */
 export interface AgentShaping {
   readonly modelSettings: ModelSettings;
+  /** For a sandbox agent, such as the minter's; a plain agent, such as Guardian's, takes none. */
   readonly capabilities: readonly Capability[];
 }
 
@@ -59,4 +69,15 @@ export interface ModelBackend {
     intentOf: (request: ModelRequest) => ModelIntent,
     base: ModelProvider,
   ) => ModelProvider;
+  /**
+   * Writes a role's cached instructions without generating output: `run` runs the role's agent
+   * once through the provider it is given, and the backend sends that run's request as the
+   * prewarm. Resolves with its token counts.
+   */
+  readonly prewarm: (
+    role: ModelRole,
+    intent: ModelIntent,
+    base: ModelProvider,
+    run: (provider: ModelProvider) => Promise<unknown>,
+  ) => Promise<Usage>;
 }

@@ -1,3 +1,4 @@
+import { Usage } from "@openai/agents";
 import type { ModelRequest } from "@openai/agents";
 import type { ModelBackend, ModelIntent } from "../../src/models/backend.js";
 
@@ -26,6 +27,11 @@ export const scriptedBackend = () => {
         };
       },
     }),
+    prewarm: async (_role, intent, base, run) => {
+      agents.push(intent);
+      await run(base);
+      return new Usage();
+    },
   };
   return { backend, agents, calls };
 };

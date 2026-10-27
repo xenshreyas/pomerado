@@ -4,7 +4,6 @@ import type { GuardianExecutionEnvironment } from "./execution-policy.js";
 import {
   guardianFollowUpState,
   guardianReviewInput,
-  guardianReviewSettings,
   guardianReviewState,
   sourceReadMaxFiles,
   sourceReadsOf,
@@ -12,7 +11,7 @@ import {
 import type { SourceRead } from "./openai-input.js";
 import { guardianDecisionFormat, reviewKindOf, withholdPrivateReviews } from "./review-layout.js";
 import type { ReviewKind } from "./review-layout.js";
-import { guardianContinuityPolicy } from "./session.js";
+import { guardianCompactionTokens, guardianContinuityPolicy } from "./session.js";
 import { guardianPublicationPolicy } from "./publication.js";
 import { publicationDeltaPolicy } from "./publication-delta.js";
 import { guardianModel, guardianModelCallBound } from "./model.js";
@@ -20,13 +19,10 @@ import type { GuardianModelCallBound, GuardianReasoningEffort } from "./model.js
 import { sourceMatches } from "./source.js";
 import { providerQuotaExhausted } from "../models/provider-quota.js";
 import { modelUsageCounts } from "../models/model-usage.js";
-import {
-  collectingCacheDiagnostics,
-  instructionsAsMessages,
-  instructionsText,
-  prewarmInstructions,
-} from "../models/cached-instructions.js";
-import type { InstructionsMessage, PromptCacheDiagnostic } from "../models/cached-instructions.js";
+import { collectingCacheDiagnostics } from "../models/cached-instructions.js";
+import type { PromptCacheDiagnostic } from "../models/cached-instructions.js";
+import type { ModelBackend, ModelIntent } from "../models/backend.js";
+import { openAIBackend } from "../models/backends/openai.js";
 import { failureDetail } from "../runtime/failure-detail.js";
 import { Agent, AgentsError, MaxTurnsExceededError, Runner, tool, Usage } from "@openai/agents";
 import { Effect, Exit, identity } from "effect";
@@ -240,15 +236,31 @@ const sharedInstructions = (policy: string) =>
  * a session and the build's request. A session's conversation caches on from there, so a
  * compaction keeps both.
  */
-const guardianInstructions = (shared: string, turn: ReviewTurn): readonly InstructionsMessage[] => [
-  { text: shared, breakpoint: "12h" },
-  {
-    text: [
-      ...(turn.session ? [guardianContinuityPolicy] : []),
-      `trusted_request: ${JSON.stringify({ intent: turn.pending.screenedIntent })}`,
-    ].join("\n\n"),
-  },
+const guardianInstructions = (shared: string, turn: ReviewTurn): readonly string[] => [
+  shared,
+  [
+    ...(turn.session ? [guardianContinuityPolicy] : []),
+    `trusted_request: ${JSON.stringify({ intent: turn.pending.screenedIntent })}`,
+  ].join("\n\n"),
 ];
+
+/**
+ * A review's needs from its model, the same on each of its requests. A session's conversation
+ * continues across reviews, so it keeps earlier turns' reasoning and compacts.
+ */
+const reviewIntent = (
+  instructionParts: readonly string[],
+  session: boolean,
+  effort: GuardianReasoningEffort,
+  promptCacheKey: string | undefined,
+): ModelIntent => ({
+  effort,
+  continuity: session,
+  parallelToolCalls: true,
+  cache: promptCacheKey === undefined ? {} : { key: promptCacheKey },
+  instructionParts,
+  ...(session ? { compactAtTokens: guardianCompactionTokens } : {}),
+});
 
 /** The host's policies for this review, each once, in order: registered, then per review. */
 const hostPolicies = (
@@ -550,15 +562,23 @@ export type GuardianPrewarm = ReturnType<typeof modelUsageCounts>;
  * Sends the prewarm of the shared instructions through the same agent, settings, tool and
  * provider a session's review uses, so its prefix is the one every review sends.
  */
-const prewarmShared = (shared: string, options: GuardianModelOptions) =>
+const prewarmShared = (shared: string, backend: ModelBackend, options: GuardianModelOptions) =>
   Effect.tryPromise({
     try: async (signal) => {
-      const instructions = [{ text: shared, breakpoint: "12h" as const }];
+      const intent: ModelIntent = {
+        ...reviewIntent(
+          [shared],
+          true,
+          guardianModel.modelSettings.reasoning.effort,
+          options.promptCacheKey,
+        ),
+        prewarm: true,
+      };
       const agent = new Agent({
         name: "Pomerado Guardian",
-        ...guardianModel,
-        modelSettings: guardianReviewSettings(true, options.promptCacheKey),
-        instructions: instructionsText(instructions),
+        model: backend.model("guardian"),
+        modelSettings: backend.agent("guardian", intent).modelSettings,
+        instructions: shared,
         outputType: guardianDecisionFormat,
         tools: [
           tool({
@@ -574,10 +594,15 @@ const prewarmShared = (shared: string, options: GuardianModelOptions) =>
         tracingDisabled: true,
         traceIncludeSensitiveData: false,
       });
-      const usage = await prewarmInstructions(runner.config.modelProvider, 1, async (provider) => {
-        runner.config.modelProvider = instructionsAsMessages(provider, instructions);
-        return runner.run(agent, "Prewarm the cached instructions.", { signal, maxTurns: 1 });
-      });
+      const usage = await backend.prewarm(
+        "guardian",
+        intent,
+        runner.config.modelProvider,
+        async (provider) => {
+          runner.config.modelProvider = provider;
+          return runner.run(agent, "Prewarm the cached instructions.", { signal, maxTurns: 1 });
+        },
+      );
       return modelUsageCounts(usage);
     },
     catch: (error) =>
@@ -591,8 +616,12 @@ const prewarmShared = (shared: string, options: GuardianModelOptions) =>
       }),
   });
 
-const reviewerWithPolicy = (shared: string, options: GuardianModelOptions): OpenAIReviewer => ({
-  prewarm: () => prewarmShared(shared, options),
+const reviewerWithPolicy = (
+  shared: string,
+  backend: ModelBackend,
+  options: GuardianModelOptions,
+): OpenAIReviewer => ({
+  prewarm: () => prewarmShared(shared, backend, options),
   run: (turn) =>
     Effect.suspend(() => {
       let diagnosticState: ModelObserver | undefined;
@@ -722,14 +751,17 @@ const reviewerWithPolicy = (shared: string, options: GuardianModelOptions): Open
           const conversationEffort = turn.session?.reasoningEffort() ?? requestEffort;
           const effortUpdate = reasoningEffort === conversationEffort ? undefined : reasoningEffort;
           const instructions = guardianInstructions(shared, turn);
+          const intent = reviewIntent(
+            instructions,
+            turn.session !== undefined,
+            reasoningEffort,
+            options.promptCacheKey,
+          );
           const agent = new Agent({
             name: "Pomerado Guardian",
-            ...guardianModel,
-            modelSettings: guardianReviewSettings(
-              turn.session !== undefined,
-              options.promptCacheKey,
-            ),
-            instructions: instructionsText(instructions),
+            model: backend.model("guardian"),
+            modelSettings: backend.agent("guardian", intent).modelSettings,
+            instructions: instructions.join("\n\n"),
             outputType: guardianDecisionFormat,
             tools: [readSource],
           });
@@ -743,11 +775,11 @@ const reviewerWithPolicy = (shared: string, options: GuardianModelOptions): Open
           // Each model call is bounded on its own, below every observer, so a call sent again
           // reaches the session and the transcript as the one call it is.
           const callBound = options.modelCallBound ?? guardianModelCallBound;
-          // The instructions travel as developer messages, the shared ones ending in a cache
-          // breakpoint, right above the model, so every observer still sees them as instructions.
+          // The backend's shaping goes right above the model, so every observer still sees the
+          // SDK's own request.
           const cacheDiagnostics = collectingCacheDiagnostics(runner.config.modelProvider);
           runner.config.modelProvider = boundedModelCalls(
-            instructionsAsMessages(cacheDiagnostics.provider, instructions),
+            backend.provider("guardian", () => intent, cacheDiagnostics.provider),
             callBound,
             {
               retried: (attempt) => {
@@ -982,6 +1014,24 @@ const reviewerWithPolicy = (shared: string, options: GuardianModelOptions): Open
 });
 
 /**
+ * Guardian's reviewer whose requests `backend` shapes, with `makeOpenAIReviewer`'s settings after
+ * it: the model provider there is the base the backend wraps.
+ */
+export const makeReviewer = (
+  backend: ModelBackend,
+  upstreamPolicy: string,
+  _developmentPublicRead: boolean,
+  options: GuardianModelOptions,
+): OpenAIReviewer =>
+  reviewerWithPolicy(
+    sharedInstructions(
+      withTenantPolicy(upstreamPolicy, guardianExecutionPolicy(options.executionEnvironment)),
+    ),
+    backend,
+    options,
+  );
+
+/**
  * Guardian's reviewer on the OpenAI Agents SDK. `_developmentPublicRead` once chose a longer review
  * deadline; a review has none now, so it has no effect. It stays so existing callers compile and
  * will be removed.
@@ -991,9 +1041,4 @@ export const makeOpenAIReviewer = (
   _developmentPublicRead: boolean,
   options: GuardianModelOptions,
 ): OpenAIReviewer =>
-  reviewerWithPolicy(
-    sharedInstructions(
-      withTenantPolicy(upstreamPolicy, guardianExecutionPolicy(options.executionEnvironment)),
-    ),
-    options,
-  );
+  makeReviewer(openAIBackend(), upstreamPolicy, _developmentPublicRead, options);
