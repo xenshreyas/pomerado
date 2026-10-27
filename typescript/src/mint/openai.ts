@@ -15,7 +15,6 @@ import {
   mintCompactionLimitTokens,
   mintIdleCompactionTokens,
 } from "./idle-compaction.js";
-import { providerQuotaExhausted } from "../models/provider-quota.js";
 import { transientTransportFailure } from "../models/transport-failure.js";
 import { MaxTurnsExceededError, RunContext, RunState, Runner, Usage, tool } from "@openai/agents";
 import type {
@@ -172,11 +171,8 @@ const transientProviderErrors = new Set([
 const transientProviderCodes = new Set<unknown>(["server_error", "rate_limit_exceeded"]);
 const transientStatus = (status: number) =>
   status === 408 || status === 409 || status === 429 || status >= 500;
-const quotaExhausted = (error: unknown) =>
-  !(error instanceof MintFailure) && providerQuotaExhausted(error);
 const transientModelFailure = (error: unknown): boolean => {
   if (error instanceof MintFailure || error === null || typeof error !== "object") return false;
-  if (quotaExhausted(error)) return false;
   const name: unknown = Reflect.get(error, "name");
   if (typeof name === "string" && transientProviderErrors.has(name)) return true;
   const status: unknown = Reflect.get(error, "status");
@@ -561,6 +557,9 @@ const openAIMinter = (
       const modelCallCapacity = limits.modelCallCapacity ?? mintModelCallCapacity;
       const turnsPerSegment = limits.segmentTurns ?? segmentTurns;
       const retry = limits.modelRetry ?? modelCallRetry;
+      /** The backend's kind of a provider's failure, which no retry gets past. */
+      const classified = (error: unknown) =>
+        error instanceof MintFailure ? undefined : backend.classify(error);
       const deadline = turn.deadline ?? Deadline.after();
       let terminationReason:
         | "model_call_capacity"
@@ -1458,6 +1457,7 @@ const openAIMinter = (
                           retry.delaysMs[Math.min(retries, retry.delaysMs.length - 1)] ??
                           retry.delaysMs[0];
                         if (
+                          classified(error) !== undefined ||
                           !transientModelFailure(error) ||
                           runtimeRecordUnavailable(diagnostics) ||
                           signal.aborted ||
@@ -1763,10 +1763,12 @@ const openAIMinter = (
                 })
               );
             // A spent quota is the provider's final answer: the attempt ends as a host failure
-            // that carries the provider's error, and nothing retries it.
+            // that carries the provider's error, and nothing retries it. Another kind the
+            // backend names is no outage either; a refusal ends the attempt as one.
+            const kind = classified(error);
             throw (
               mintFailure(error) ??
-              (quotaExhausted(error)
+              (kind === "quota_exhausted"
                 ? new MintFailure({
                     code: "Unavailable",
                     modelOutage: "quota_exhausted",
@@ -1778,9 +1780,20 @@ const openAIMinter = (
                   })
                 : new MintFailure({
                     code: "Unavailable",
-                    ...(transientModelFailure(error)
+                    ...(kind === undefined && transientModelFailure(error)
                       ? { modelOutage: "unavailable" as const }
                       : {}),
+                    ...(kind === "refused" ? { modelOutage: "refused" as const } : {}),
+                    ...(kind === undefined
+                      ? {}
+                      : {
+                          failureDetail: failureDetail("provider_failed", {
+                            operation: "model.getResponse",
+                            phase: "model",
+                            error,
+                            context: { modelFailureKind: kind },
+                          }),
+                        }),
                     // The SDK's turn ceiling once the attempt's model calls are spent.
                     ...(terminationReason === "model_call_capacity"
                       ? { turnBudgetSpent: true as const }

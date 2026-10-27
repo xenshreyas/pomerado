@@ -232,6 +232,11 @@ export class ReviewFailure extends Data.TaggedError("ReviewFailure")<{
    * again cannot help, and the attempt ends as the `model_quota_exhausted` host failure.
    */
   readonly modelQuotaExhausted?: true;
+  /**
+   * The model declined the review's request. The same request meets the same refusal, so it is
+   * never retried as an outage, whatever its `code`.
+   */
+  readonly modelRefused?: true;
   /** Sub-cause, operation, underlying error, stack and context; see ERROR-LOGGING-STANDARD.md. */
   readonly failureDetail?: FailureDetail;
   readonly publicationBlock?: PublicationFileBlock;
@@ -262,6 +267,7 @@ const withoutDetail = (failure: ReviewFailure): ReviewFailure =>
           : { publicationBlock: failure.publicationBlock }),
         ...(failure.reviewPhase === undefined ? {} : { reviewPhase: failure.reviewPhase }),
         ...(failure.modelQuotaExhausted === true ? { modelQuotaExhausted: true } : {}),
+        ...(failure.modelRefused === true ? { modelRefused: true } : {}),
         ...(failure.diagnosticRetentionReason === undefined
           ? {}
           : { diagnosticRetentionReason: failure.diagnosticRetentionReason }),
@@ -661,10 +667,12 @@ export const guardianOutageRetry: ReviewRetry = {
 
 /**
  * An outage the same review can get past by running again. Diagnostic retention keeps its own
- * handling, a spent model quota stays spent, and a refusal is a verdict, not an outage.
+ * handling, a spent model quota stays spent, a request the model declined is declined again, and
+ * a refusal is a verdict, not an outage.
  */
 const retriableOutage = (failure: ReviewFailure): boolean =>
   failure.modelQuotaExhausted !== true &&
+  failure.modelRefused !== true &&
   failure.reviewPhase !== "diagnostic_retention" &&
   failure.diagnosticRetentionReason === undefined &&
   (failure.code === "Unavailable" || failure.code === "SourceUnavailable");

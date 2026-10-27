@@ -1,14 +1,24 @@
 import { Usage } from "@openai/agents";
 import type { ModelRequest } from "@openai/agents";
-import type { BackendFeatures, ModelBackend, ModelIntent } from "../../src/models/backend.js";
+import type {
+  BackendFeatures,
+  ModelBackend,
+  ModelFailureKind,
+  ModelIntent,
+} from "../../src/models/backend.js";
 
 /**
  * A model backend with no shaping of its own, the seam's test adapter: it records each intent an
  * agent hands it and sends every request to its base as the SDK built it. It has every feature
- * and a prewarm unless `features` or `prewarm` is false.
+ * and a prewarm unless `features` or `prewarm` is false, and names no failure unless `classify`
+ * does.
  */
 export const scriptedBackend = (
-  options: { readonly features?: boolean; readonly prewarm?: boolean } = {},
+  options: {
+    readonly features?: boolean;
+    readonly prewarm?: boolean;
+    readonly classify?: (error: unknown) => ModelFailureKind | undefined;
+  } = {},
 ) => {
   const agents: ModelIntent[] = [];
   const calls: { model: string | undefined; intent: ModelIntent; request: ModelRequest }[] = [];
@@ -38,6 +48,7 @@ export const scriptedBackend = (
       },
     }),
     features,
+    classify: options.classify ?? (() => undefined),
     ...(options.prewarm === false
       ? {}
       : {

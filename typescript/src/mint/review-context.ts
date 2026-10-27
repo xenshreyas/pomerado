@@ -267,6 +267,7 @@ export const reviewFailureOf = (error: ReviewFailure, dispatch?: "not_sent") =>
     code: "ReviewUnavailable",
     reviewFailure: error.code,
     ...(error.modelQuotaExhausted === true ? { modelOutage: "quota_exhausted" as const } : {}),
+    ...(error.modelRefused === true ? { modelOutage: "refused" as const } : {}),
     ...failureDetailMetadata(error),
     ...(error.reviewPhase === undefined ? {} : { reviewPhase: error.reviewPhase }),
     ...(dispatch === undefined ? {} : { reviewDispatch: dispatch }),

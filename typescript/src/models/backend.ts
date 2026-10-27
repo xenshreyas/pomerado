@@ -52,6 +52,19 @@ export interface AgentShaping {
   readonly capabilities: readonly Capability[];
 }
 
+/**
+ * A model call's failure in neutral terms, which no retry of the same request gets past: a spent
+ * quota, a rejected key, a model the account can't use, a request over the model's input limit, a
+ * request the model declined, or a backend configuration the provider refuses.
+ */
+export type ModelFailureKind =
+  | "quota_exhausted"
+  | "authentication"
+  | "model_unavailable"
+  | "input_too_large"
+  | "refused"
+  | "backend_configuration";
+
 /** The intent features a backend honors. A caller skips the work for one its backend lacks. */
 export interface BackendFeatures {
   /**
@@ -89,6 +102,8 @@ export interface ModelBackend {
     base?: ModelProvider,
   ) => ModelProvider;
   readonly features: BackendFeatures;
+  /** A failure's neutral kind, tried before the generic outage rules; undefined for any other. */
+  readonly classify: (error: unknown) => ModelFailureKind | undefined;
   /**
    * Writes a role's cached instructions without generating output: `run` runs the role's agent
    * once through the provider it is given, and the backend sends that run's request as the

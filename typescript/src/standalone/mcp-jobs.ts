@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { Cause, Clock, Data, Deferred, Effect, Either, Fiber, type Scope } from "effect";
 import { MintFailure } from "../mint/contracts.js";
 import { ReviewFailure } from "../guardian/review.js";
+import type { ModelFailureKind } from "../models/backend.js";
+import { openAIBackend } from "../models/backends/openai.js";
 import { modelFailureMetadata } from "../models/model-failure.js";
 import { LocalOperationFailure } from "../execution/local-operation.js";
 import { makeInputAsker } from "../inputs/callback.js";
@@ -90,6 +92,37 @@ const requestErrors = {
 };
 /** What a server's jobs do. A run makes no model request, so its messages never mention one. */
 export type McpJobKind = "mint" | "run";
+
+/** What the caller can do about each kind of model failure. */
+const modelFailureMessages: Record<ModelFailureKind, string> = {
+  quota_exhausted: "Model provider quota is spent. Restore it before trying again.",
+  authentication: "Model provider authentication failed. Check the server's model configuration.",
+  model_unavailable:
+    "The model is not available to this account. Check the server's model configuration.",
+  input_too_large: "The request was larger than the model's input limit.",
+  refused: "The model declined the request. Change the request before trying again.",
+  backend_configuration:
+    "The model provider refused the backend's settings. Check the server's model configuration.",
+};
+
+/**
+ * The kind of model failure a mint's or a review's failure records. Both record what their own
+ * backend named, so a provider's error that reaches a job unwrapped gets OpenAI's rules.
+ */
+const modelFailureKind = (error: unknown): ModelFailureKind | undefined => {
+  if (error instanceof ReviewFailure) {
+    if (error.modelQuotaExhausted === true) return "quota_exhausted";
+    return error.modelRefused === true ? "refused" : undefined;
+  }
+  if (!(error instanceof MintFailure)) return openAIBackend().classify(error);
+  if (error.modelOutage === "quota_exhausted" || error.modelOutage === "refused")
+    return error.modelOutage;
+  const recorded = error.failureDetail?.context?.["modelFailureKind"];
+  return typeof recorded === "string" && Object.hasOwn(modelFailureMessages, recorded)
+    ? (recorded as ModelFailureKind)
+    : undefined;
+};
+
 export const mcpFailureMessage = (
   cause: Cause.Cause<unknown>,
   kind: McpJobKind = "mint",
@@ -97,6 +130,8 @@ export const mcpFailureMessage = (
   const error = Cause.squash(cause);
   if (error instanceof McpJobFailure) return requestErrors[error.code];
   if (error instanceof RunOutcomeFailure) return error.message;
+  const modelFailure = modelFailureKind(error);
+  if (modelFailure !== undefined) return modelFailureMessages[modelFailure];
   if (error instanceof ReviewFailure) return `Guardian review failed (${error.code}).`;
   if (error instanceof MintFailure) return `Mint failed (${error.code}).`;
   if (error instanceof InputRequestFailure) return `Input could not be completed (${error.code}).`;
@@ -115,10 +150,8 @@ export const mcpFailureMessage = (
     ["InvalidInput", "InvalidOutput", "NoResponse"].includes(error.code ?? "")
   )
     return `Operation failed (${error.code}).`;
-  const metadata = modelFailureMetadata(error);
-  if (metadata.httpStatus === 401 || metadata.code === "invalid_api_key")
-    return "Model provider authentication failed. Check the server's model configuration.";
-  if (metadata.httpStatus === 429) return "Model provider quota or rate limit was reached.";
+  if (modelFailureMetadata(error).httpStatus === 429)
+    return "Model provider quota or rate limit was reached.";
   return kind === "run"
     ? "Operation failed. Check the local browser and integration configuration."
     : "Operation failed. Check the local model, browser and integration configuration.";
