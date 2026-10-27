@@ -597,6 +597,38 @@ test("terminal CLI help requires no provider credentials", async () => {
   expect(output).toContain("A run ignores --intent and --effect.");
 });
 
+test("both CLIs refuse to mint on Claude without a credential, and name ANTHROPIC_API_KEY", async () => {
+  // An empty config directory, so no profile signed in on this machine resolves.
+  const config = await mkdtemp(join(tmpdir(), "pomerado-anthropic-config-"));
+  const start = (cli: string, args: readonly string[]) =>
+    spawn(process.execPath, [`dist/typescript/src/standalone/${cli}`, ...args], {
+      env: {
+        PATH: process.env["PATH"] ?? "",
+        ANTHROPIC_CONFIG_DIR: config,
+        POMERADO_MODEL_BACKEND: "anthropic",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  try {
+    // One at a time, so each child's close event comes after its listener is attached.
+    for (const [cli, args] of [
+      ["cli.js", ["mint", "--url", "https://example.test/", "--intent", "Read"]],
+      ["mcp-cli.js", ["mint", "--root", config]],
+    ] as const) {
+      const child = start(cli, args);
+      let stderr = "";
+      child.stderr.on("data", (chunk: Buffer) => {
+        stderr += chunk.toString();
+      });
+      const closed: readonly unknown[] = await once(child, "close");
+      expect(closed[0], stderr).toBe(1);
+      expect(stderr).toContain("--model-backend anthropic needs ANTHROPIC_API_KEY.");
+    }
+  } finally {
+    await rm(config, { recursive: true, force: true });
+  }
+});
+
 /** Runs the built terminal CLI with only PATH, so it has no model key or provider. */
 const terminal = async (args: readonly string[]) => {
   const child = spawn(process.execPath, ["dist/typescript/src/standalone/cli.js", ...args], {
@@ -643,7 +675,8 @@ test("terminal run needs no model key, provider or intent", async () => {
         }),
       ),
     );
-    // A run ignores --effect, so even the mint-only value ask is accepted.
+    // A run ignores --effect and --model-backend, so the mint-only value ask and a backend no
+    // mint accepts both pass.
     const ran = await terminal([
       "run",
       "--artifact",
@@ -652,6 +685,8 @@ test("terminal run needs no model key, provider or intent", async () => {
       url,
       "--effect",
       "ask",
+      "--model-backend",
+      "unknown",
     ]);
     expect(ran.code, ran.stderr).toBe(0);
     expect(JSON.parse(ran.stdout)).toEqual({ heading: "Terminal fixture" });
