@@ -2,8 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { ModelRequest } from "@openai/agents";
 import type { ModelIntent } from "../../src/models/backend.js";
 import { makeAnthropicModel } from "../../src/models/backends/anthropic/model.js";
+import { claudeMinterModel } from "../../src/models/models.js";
 
-export const claudeModel = "claude-opus-5-5";
+export const claudeModel = claudeMinterModel;
 export const mediumIntent: ModelIntent = {
   effort: "medium",
   continuity: true,
@@ -116,10 +117,12 @@ export const claudeError = (status: number, type: string, message: string) => ()
     headers: { "content-type": "application/json", "request-id": "req_error" },
   });
 
-/** A Claude model over a fetch that records each request and answers with the next reply. */
-export const claudeWire = (
-  replies: (() => Response)[],
-  intentOf: (request: ModelRequest) => ModelIntent = () => mediumIntent,
+/**
+ * A Claude client over a fetch that records each request's body and beta header and answers it
+ * with `reply`, given the body and its index.
+ */
+export const claudeClient = (
+  reply: (body: Record<string, unknown>, index: number) => (() => Response) | undefined,
 ) => {
   const bodies: Record<string, unknown>[] = [];
   const betas: (string | null)[] = [];
@@ -128,12 +131,22 @@ export const claudeWire = (
     baseURL: "https://api.anthropic.test",
     maxRetries: 0,
     fetch: async (_url, init) => {
-      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      bodies.push(body);
       betas.push(new Headers(init?.headers).get("anthropic-beta"));
-      const reply = replies.shift();
-      if (reply === undefined) throw new Error("No scripted reply left");
-      return reply();
+      const answer = reply(body, bodies.length - 1);
+      if (answer === undefined) throw new Error("No scripted reply left");
+      return answer();
     },
   });
+  return { client, bodies, betas };
+};
+
+/** A Claude model over a recording client that answers with the next reply. */
+export const claudeWire = (
+  replies: (() => Response)[],
+  intentOf: (request: ModelRequest) => ModelIntent = () => mediumIntent,
+) => {
+  const { client, bodies, betas } = claudeClient(() => replies.shift());
   return { model: makeAnthropicModel({ client, model: claudeModel, intentOf }), bodies, betas };
 };

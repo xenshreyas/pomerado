@@ -379,6 +379,12 @@ export { mintCompaction, mintCompactionThresholdTokens } from "../models/backend
 /** A skill's page as `read_source` takes it, relative or under `/workspace/`. */
 const skillPagePath = /^(?:\/workspace\/)?\.agents\/([^/]+)\/SKILL\.md$/u;
 
+/** An item a user turn holds: a tool's result or a user message. */
+const inUserTurn = (item: AgentInputItem | undefined) =>
+  item?.type === "function_call_result" ||
+  item?.type === "apply_patch_call_output" ||
+  (item !== undefined && "role" in item && item.role === "user");
+
 /**
  * The note after a compaction, naming the skills the minter read before it. A compaction drops
  * the pages it read from view, and a model that remembers having read a skill tends to act on
@@ -663,12 +669,21 @@ const openAIMinter = (
               if (!compactionNotes.has(key)) compactionNotes.set(key, skillsReadNote());
               return compactionNotes.get(key);
             };
-            /** The SDK's input, which a provider compaction starts, with that compaction's note. */
+            /**
+             * The SDK's input, which a provider compaction starts, with that compaction's note:
+             * right after it, or on a backend that asks for it, at the end of the next user turn,
+             * after the results of the response the compaction began.
+             */
             const afterProviderCompaction = (input: string | AgentInputItem[]) => {
               const [first, ...rest] = typeof input === "string" ? [] : input;
               if (first?.type !== "compaction") return input;
               const note = noteFor(first);
-              return note === undefined ? input : [first, note, ...rest];
+              if (note === undefined) return input;
+              if (!backend.features.noteAfterToolResults) return [first, note, ...rest];
+              const start = rest.findIndex(inUserTurn);
+              let end = start === -1 ? rest.length : start;
+              while (end < rest.length && inUserTurn(rest[end])) end++;
+              return [first, ...rest.slice(0, end), note, ...rest.slice(end)];
             };
             /** Each call's response and position in it, in the model's order. */
             const placed = new Map<

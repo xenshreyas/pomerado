@@ -79,6 +79,12 @@ export interface BackendFeatures {
    * request carries its review's effort as `intent.effort`.
    */
   readonly effortChangeKeepsCache: boolean;
+  /**
+   * A note an agent adds after a provider's compaction goes at the end of the next user turn,
+   * after its tool results, not right after the compaction: the provider's turn holds all of a
+   * response's items, and a message between them would split it.
+   */
+  readonly noteAfterToolResults: boolean;
 }
 
 /**
