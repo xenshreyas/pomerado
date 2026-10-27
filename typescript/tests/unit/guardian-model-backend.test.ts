@@ -121,3 +121,33 @@ it.each([
     );
   }
 });
+
+it("compares each later request of a session with the conversation's latest response", async () => {
+  const scripted = scriptedBackend();
+  let calls = 0;
+  const policy = "Synthetic policy {{ tenant_policy_config }}";
+  const reviewer = makeReviewer(scripted.backend, policy, false, {
+    executionEnvironment: nativeExecutionEnvironment,
+    modelProvider: {
+      getModel: () => ({
+        getResponse: () =>
+          Promise.resolve({ ...(calls % 2 === 0 ? read : allow), responseId: `resp_${++calls}` }),
+        getStreamedResponse: () => {
+          throw new Error("Unused stream");
+        },
+      }),
+    },
+  });
+  const guardian = makeGuardian(reviewer, undefined, {});
+  for (const review of [pending, { ...pending, screenedInput: '{"again":true}' }])
+    await Effect.runPromise(guardian.review(review, readCurrent));
+
+  expect(scripted.calls.map(({ intent }) => intent.cache?.compareWith)).toStrictEqual([
+    undefined,
+    "resp_1",
+    "resp_2",
+    "resp_3",
+  ]);
+  for (const { request } of scripted.calls)
+    expect(JSON.stringify(request)).not.toMatch(/prompt_cache/u);
+});

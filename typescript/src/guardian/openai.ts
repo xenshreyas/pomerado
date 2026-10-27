@@ -779,7 +779,11 @@ const reviewerWithPolicy = (
           // SDK's own request.
           const cacheDiagnostics = collectingCacheDiagnostics(runner.config.modelProvider);
           runner.config.modelProvider = boundedModelCalls(
-            backend.provider("guardian", () => intent, cacheDiagnostics.provider),
+            backend.provider(
+              "guardian",
+              () => turn.session?.compared(intent) ?? intent,
+              cacheDiagnostics.provider,
+            ),
             callBound,
             {
               retried: (attempt) => {

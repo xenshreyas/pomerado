@@ -13,9 +13,9 @@ import {
   configurationUpdate,
   configurationUpdateEffort,
   latestConfigurationEffort,
-  withCacheComparison,
 } from "../models/cached-instructions.js";
 import { leadingPrivateAfter } from "./review-layout.js";
+import type { ModelIntent } from "../models/backend.js";
 
 /** Private continuation state; complete original exchanges remain in protected model records. */
 export const GuardianSessionSnapshot = Schema.Struct({
@@ -205,8 +205,8 @@ const continuationProvider = ({
   setEffective: (value: "all_turns" | "current_turn" | "not_reported") => void;
   compacted: () => void;
   compaction: SessionCompaction;
-  /** The conversation's latest response, which each request compares its prompt cache with. */
-  comparison: { readonly latest: () => string | undefined; readonly set: (id?: string) => void };
+  /** Keeps the conversation's latest response, which the next request compares its cache with. */
+  comparison: { readonly set: (id?: string) => void };
 }): ModelProvider => ({
   getModel: (name) =>
     Effect.runPromise(
@@ -227,12 +227,7 @@ const continuationProvider = ({
                 if (prepared.usage !== undefined) yield* save(state(), true);
                 const returned = yield* Effect.tryPromise({
                   try: () =>
-                    model.getResponse(
-                      withCacheComparison(
-                        sessionCompaction.backstopped(prepared.sent),
-                        comparison.latest(),
-                      ),
-                    ),
+                    model.getResponse(sessionCompaction.backstopped(prepared.sent)),
                   catch: providerError,
                 });
                 comparison.set(returned.responseId);
@@ -413,14 +408,11 @@ export const makeGuardianSession = (options: GuardianSessionOptions) => {
         Effect.tryPromise({
           try: () =>
             model.getResponse(
-              withCacheComparison(
-                withoutAutomaticCompaction({
-                  ...request,
-                  input: [...request.input, compactionTrigger],
-                  ...(sent.signal === undefined ? {} : { signal: sent.signal }),
-                }),
-                current.latestResponseId,
-              ),
+              withoutAutomaticCompaction({
+                ...request,
+                input: [...request.input, compactionTrigger],
+                ...(sent.signal === undefined ? {} : { signal: sent.signal }),
+              }),
             ),
           catch: providerError,
         }),
@@ -545,9 +537,14 @@ export const makeGuardianSession = (options: GuardianSessionOptions) => {
         compacted: () => {
           compactions++;
         },
-        comparison: { latest: () => current.latestResponseId, set: setLatestResponse },
+        comparison: { set: setLatestResponse },
       }),
     snapshot: () => current,
+    /** The next request's intent, which compares its prompt cache with the latest response. */
+    compared: (intent: ModelIntent): ModelIntent =>
+      current.latestResponseId === undefined
+        ? intent
+        : { ...intent, cache: { ...intent.cache, compareWith: current.latestResponseId } },
     /** Whether readable records must withhold the history's leading items; see the snapshot. */
     leadingPrivate: () => current.leadingPrivate === true,
     /** The conversation since its last compaction, as the next request continues it. */
