@@ -3,25 +3,17 @@ import type { MintRecoveryFactory } from "./recovery-contracts.js";
 import { failureDetail, failureRootCause } from "../runtime/failure-detail.js";
 import { modelCauseMetadata, modelFailureMetadata } from "../models/model-failure.js";
 import type { ModelFailureMetadata } from "../models/model-failure.js";
-import {
-  effectiveReasoningContext,
-  withReasoningContinuity,
-} from "../models/reasoning-settings.js";
+import { effectiveReasoningContext } from "../models/reasoning-settings.js";
 import { flatUsage, modelUsageCounts } from "../models/model-usage.js";
-import {
-  promptCacheDiagnostics,
-  withAllowedTools,
-  withCacheComparison,
-  withCachedPrefix,
-  withPromptCache,
-} from "../models/prompt-cache.js";
+import { promptCacheDiagnostics } from "../models/prompt-cache.js";
+import type { ModelBackend, ModelIntent } from "../models/backend.js";
+import { mintCompactionThresholdTokens, openAIBackend } from "../models/backends/openai.js";
 import { strictToolSchema } from "./strict-tool-schema.js";
 import {
   makeIdleCompaction,
   mintCompactionLimitTokens,
   mintIdleCompactionTokens,
 } from "./idle-compaction.js";
-import { solModel } from "../models/models.js";
 import { providerQuotaExhausted } from "../models/provider-quota.js";
 import { transientTransportFailure } from "../models/transport-failure.js";
 import { MaxTurnsExceededError, RunContext, RunState, Runner, Usage, tool } from "@openai/agents";
@@ -37,9 +29,7 @@ import type {
 import {
   SandboxAgent,
   Manifest,
-  StaticCompactionPolicy,
   cloneManifest,
-  compaction,
   filesystem,
   shell,
   skills,
@@ -387,13 +377,7 @@ const mintModelCallCapacity = 512;
 /** SDK maxTurns for one runner segment. A continuable ceiling starts the next segment. */
 const segmentTurns = 128;
 
-/** Input-token threshold for server-side compaction, the backstop behind the background one.
- * Set explicitly because the pinned SDK's context-window table has no GPT-6.1 entry and would
- * silently fall back; 268K also stays below GPT-6's 272K long-context pricing threshold, where
- * the input price doubles. */
-export const mintCompactionThresholdTokens = 268_000;
-export const mintCompaction = (): ReturnType<typeof compaction> =>
-  compaction({ policy: new StaticCompactionPolicy(mintCompactionThresholdTokens) });
+export { mintCompaction, mintCompactionThresholdTokens } from "../models/backends/openai.js";
 
 /** A skill's page as `read_source` takes it, relative or under `/workspace/`. */
 const skillPagePath = /^(?:\/workspace\/)?\.agents\/([^/]+)\/SKILL\.md$/u;
@@ -454,13 +438,6 @@ const executeSchema = (() => {
     restore: strict.restore,
   };
 })();
-
-/**
- * The prompt-cache lifetime of the minter's static prefix: the instructions and the host's
- * static context, which every job of a release shares. The rest of the conversation uses the
- * implicit breakpoint at the default 30 minutes.
- */
-const staticPrefixTtl = "12h";
 
 /** The host tools a build turn may offer, in the fixed order every build sends them. */
 const hostToolNames = [
@@ -561,6 +538,7 @@ type MinterOptions = Parameters<typeof makeOpenAIMinter>;
 
 const openAIMinter = (
   prewarm: boolean,
+  backend: ModelBackend,
   modelProvider?: ModelProvider,
   reasoningEffort: "low" | "medium" = "medium",
   limits: {
@@ -1261,31 +1239,25 @@ const openAIMinter = (
               abandonSignIn,
               liveTests,
             ].map((entry) => (offeredTools.has(entry.name) ? entry : refuseNotOffered(entry)));
+            const intent: ModelIntent = {
+              effort: reasoningEffort,
+              continuity: true,
+              // A build turn may send a step's edit and the execute that runs it in one response;
+              // the effect question turn asks one question.
+              parallelToolCalls: !turn.effectQuestion,
+              cache: turn.promptCacheKey === undefined ? {} : { key: turn.promptCacheKey },
+              ...(turn.staticContext === undefined ? {} : { staticContext: turn.staticContext }),
+              ...(turn.effectQuestion ? {} : { compactAtTokens: mintCompactionThresholdTokens }),
+              ...(prewarm ? { prewarm: true } : {}),
+            };
+            const shaping = backend.agent("minter", intent);
             const agent = new SandboxAgent({
               name: "Pomerado minter",
-              model: solModel,
+              model: backend.model("minter"),
               // The workspace AGENTS.md is the always-on context, loaded here on every turn; the
               // SDK's default sandbox prompt stays in front of it.
               instructions: turn.instructions,
-              // Summaries and encrypted reasoning continuity are always on; absence of a
-              // summary is recorded per response. Reasoning from earlier turns stays rendered
-              // after a continuation or host notice, so the cached prompt is never rewritten
-              // from the first earlier reasoning item; the applied context is recorded per call.
-              // A build turn may send a step's edit and the execute that runs it in one response;
-              // the effect question turn asks one question.
-              // The static prefix carries its own 12-hour breakpoint (withCachedPrefix); the rest of
-              // the conversation is cached at the implicit breakpoint.
-              modelSettings: withPromptCache(
-                withReasoningContinuity({
-                  parallelToolCalls: !turn.effectQuestion,
-                  reasoning: { effort: reasoningEffort, context: "all_turns" },
-                }),
-                {
-                  mode: "implicit",
-                  ...(prewarm ? { prewarm: true } : {}),
-                  ...(turn.promptCacheKey === undefined ? {} : { key: turn.promptCacheKey }),
-                },
-              ),
+              modelSettings: shaping.modelSettings,
               // The effect question turn gets no filesystem, shell or skill tools. Its only
               // permitted action is request_input, and the harness session refuses every other call.
               capabilities: turn.effectQuestion
@@ -1294,7 +1266,7 @@ const openAIMinter = (
                     filesystem({ configureTools: protectTools }),
                     shell({ configureTools: protectTools }),
                     skillCapability,
-                    mintCompaction(),
+                    ...shaping.capabilities,
                   ],
               // Every build turn sends every host tool, in one order and with the same definitions,
               // so builds share the cached prefix the tools start; the request's allowed_tools
@@ -1386,43 +1358,29 @@ const openAIMinter = (
                       )
                       .catch(() => undefined),
                 });
-            /**
-             * What every request sends, the background compaction's included: the instructions and
-             * the host's static context lead as one developer message ending at a 12-hour cache
-             * breakpoint, shared by every job of the release, ahead of everything else, a
-             * compaction item included; and a build turn may call only the tools it offers. Below
-             * the observer, so a record keeps the SDK's own request.
-             */
-            const layout = (request: ModelRequest): ModelRequest => {
-              const prefixed = withCachedPrefix(request, turn.staticContext ?? [], staticPrefixTtl);
-              // A prewarm sends the static prefix alone; which tools may run is no part of it.
-              if (prewarm) return { ...prefixed, input: prefixed.input.slice(0, 1) };
-              // After the run's first turn, each request asks the provider to compare its cache
-              // reuse with the last turn's response (prompt_cache_diagnostics).
-              const compared =
-                lastResponseId === undefined
-                  ? prefixed
-                  : withCacheComparison(prefixed, lastResponseId);
-              return turn.effectQuestion
-                ? compared
-                : withAllowedTools(
-                    compared,
-                    (name) => !hostTools.has(name) || offeredTools.has(name),
-                  );
-            };
             /** The run's last turn response, which the next request's cache diagnostics compare. */
             let lastResponseId: string | undefined;
-            const sdkProvider = runner.config.modelProvider;
-            const cacheLayout: ModelProvider = {
-              getModel: async (name) => {
-                const model = await sdkProvider.getModel(name);
-                return {
-                  getResponse: (request) => model.getResponse(layout(request)),
-                  getStreamedResponse: (request) => model.getStreamedResponse(layout(request)),
-                };
+            /**
+             * Each request's intent: after the run's first turn it names the last turn's response,
+             * and a build turn may call every tool but the host tools it does not offer.
+             */
+            const intentOf = (request: ModelRequest): ModelIntent => ({
+              ...intent,
+              cache: {
+                ...intent.cache,
+                ...(lastResponseId === undefined ? {} : { compareWith: lastResponseId }),
               },
-            };
-            const provider = diagnostics?.provider(cacheLayout) ?? cacheLayout;
+              ...(turn.effectQuestion
+                ? {}
+                : {
+                    offeredTools: request.tools
+                      .map((entry) => entry.name)
+                      .filter((name) => !hostTools.has(name) || offeredTools.has(name)),
+                  }),
+            });
+            // Below the observer, so a record keeps the SDK's own request.
+            const shaped = backend.provider("minter", intentOf, runner.config.modelProvider);
+            const provider = diagnostics?.provider(shaped) ?? shaped;
             runner.config.modelProvider = {
               getModel: async (name) => {
                 const model = await provider.getModel(name);
@@ -1873,7 +1831,14 @@ export const makeOpenAIMinter = (
     readonly failureMetadata?: (error: unknown) => ModelFailureMetadata;
     readonly causeMetadata?: (cause: Cause.Cause<unknown>) => ModelFailureMetadata;
   } = {},
-): MintModel => openAIMinter(false, modelProvider, reasoningEffort, limits, ports);
+): MintModel => openAIMinter(false, openAIBackend(), modelProvider, reasoningEffort, limits, ports);
+
+/**
+ * A minter whose requests `backend` shapes, with `makeOpenAIMinter`'s settings after it: the
+ * model provider there is the base the backend wraps.
+ */
+export const makeMinter = (backend: ModelBackend, ...options: MinterOptions): MintModel =>
+  openAIMinter(false, backend, ...options);
 
 /** What a minter's static prefix depends on: the same values its jobs' dependencies give. */
 export interface MinterPrefixSettings {
@@ -1962,7 +1927,7 @@ export const prewarmMinterPrefix = (
     };
     // A prewarm generates no output, which the SDK would answer with another turn: one turn
     // per segment ends the run after the one request.
-    return openAIMinter(true, modelProvider, reasoningEffort, { segmentTurns: 1 })
+    return openAIMinter(true, openAIBackend(), modelProvider, reasoningEffort, { segmentTurns: 1 })
       .run(turn)
       .pipe(Effect.map(() => counts));
   });
