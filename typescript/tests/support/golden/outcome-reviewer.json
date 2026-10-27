@@ -1,0 +1,98 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "e12a6cec94704654d4d2cf3530035800a7321c1d983cfc3d78f6ec30169d7a64",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:ed0552e3bb65…, 3230 chars> You are Pomerado's outcome reviewer for one mint. A minting …",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "0b67a4a4cfc757eac594ffe97e1db8d04c3f2fc9a794df701df7df02fe7bb2b9",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "explicit",
+        "prewarm": true
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 240000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": false
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "f558bc9659ada96fc85e46e6b332b164720e3c09c59b2a37056fb3a35a9a9e25",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": {
+        "carriedOver": 1,
+        "added": [
+          {
+            "role": "user",
+            "content": "First synthetic wake"
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "0b67a4a4cfc757eac594ffe97e1db8d04c3f2fc9a794df701df7df02fe7bb2b9",
+      "stream": false,
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 240000
+        }
+      ],
+      "prompt_cache_key": "synthetic-environment",
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": false
+    }
+  }
+]

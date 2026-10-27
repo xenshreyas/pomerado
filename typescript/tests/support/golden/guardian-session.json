@@ -1,0 +1,354 @@
+[
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "46f83fa201997952e542ae81c6de2984da1f29c21892899bae12f5c2dc05b1b5",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:bea4aac64a11…, 58209 chars> Synthetic policy Pomerado policy for one submitted execution…",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        },
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:fbaae2b5269d…, 762 chars> This is one continuing Guardian conversation for this mint. …"
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": "<sha256:5a0e0158e403…, 3940 chars> {\"trusted_review\":{\"kind\":\"execution\",\"policy\":\"Return the s…"
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit"
+      },
+      "context_management": [
+        {
+          "type": "compaction",
+          "compact_threshold": 240000
+        }
+      ],
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "1f169ae420cc979d9584eab36616e4868f639e766390fb82945d3e946d9763a3",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": {
+        "carriedOver": 3,
+        "added": [
+          {
+            "type": "message",
+            "id": "msg_allow",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "{\"outcome\":\"allow\",\"rationale\":\"Synthetic decision\",\"action\":\"read\"}",
+                "annotations": []
+              }
+            ],
+            "status": "completed"
+          },
+          {
+            "type": "configuration_update",
+            "reasoning": {
+              "effort": "low"
+            }
+          },
+          {
+            "role": "user",
+            "content": "<sha256:76ec248f222e…, 3954 chars> {\"trusted_review\":{\"kind\":\"execution\",\"policy\":\"Return the s…"
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_1"
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "ca737252b5e768969ac248adc9c83f722b79d59c3013eb64deec54991030be8c",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": {
+        "carriedOver": 6,
+        "added": [
+          {
+            "type": "compaction_trigger"
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_2"
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "3a3d175d359fe47e0988d7e1eb4c49a05c045f3fcfb8e71c3bebded6cde02d0c",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": [
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:bea4aac64a11…, 58209 chars> Synthetic policy Pomerado policy for one submitted execution…",
+              "prompt_cache_breakpoint": {
+                "mode": "explicit",
+                "ttl": "12h"
+              }
+            }
+          ]
+        },
+        {
+          "type": "message",
+          "role": "developer",
+          "content": [
+            {
+              "type": "input_text",
+              "text": "<sha256:fbaae2b5269d…, 762 chars> This is one continuing Guardian conversation for this mint. …"
+            }
+          ]
+        },
+        {
+          "type": "compaction",
+          "id": "cmp_session",
+          "encrypted_content": "opaque-cmp_session"
+        },
+        {
+          "type": "configuration_update",
+          "reasoning": {
+            "effort": "low"
+          }
+        },
+        {
+          "type": "message",
+          "id": "msg_allow",
+          "role": "assistant",
+          "content": [
+            {
+              "type": "output_text",
+              "text": "{\"outcome\":\"allow\",\"rationale\":\"Synthetic decision\",\"action\":\"read\"}",
+              "annotations": []
+            }
+          ],
+          "status": "completed"
+        },
+        {
+          "role": "user",
+          "content": "<sha256:76ec248f222e…, 3954 chars> {\"trusted_review\":{\"kind\":\"execution\",\"policy\":\"Return the s…"
+        }
+      ],
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_3"
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "823abc04223eaee35776c87d63b22d0dfe8eb5444664c29031b32658f3e3e0a2",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": {
+        "carriedOver": 6,
+        "added": [
+          {
+            "id": "fc_read",
+            "type": "function_call",
+            "name": "read_source",
+            "call_id": "read",
+            "arguments": "{\"path\":\"operation/operation.mjs\",\"offset\":0,\"match\":null,\"paths\":null}",
+            "status": "completed"
+          },
+          {
+            "type": "function_call_output",
+            "call_id": "read",
+            "output": "{\"kind\":\"untrusted_source\",\"path\":\"operation/operation.mjs\",\"byteOffset\":0,\"source\":\"export default 1\",\"nextOffset\":16,\"hasMore\":false}",
+            "status": "completed"
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_4"
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  },
+  {
+    "method": "POST",
+    "path": "/v1/responses",
+    "headers": {
+      "accept": "application/json",
+      "authorization": "Bearer synthetic-key",
+      "content-type": "application/json"
+    },
+    "sha256": "de147547d669c46b8860176852273586ef0c23a17f39da50a12fc2eab3a337db",
+    "body": {
+      "model": "{{lunaModel}}",
+      "input": {
+        "carriedOver": 8,
+        "added": [
+          {
+            "type": "message",
+            "id": "msg_allow",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "{\"outcome\":\"allow\",\"rationale\":\"Synthetic decision\",\"action\":\"read\"}",
+                "annotations": []
+              }
+            ],
+            "status": "completed"
+          },
+          {
+            "type": "configuration_update",
+            "reasoning": {
+              "effort": "medium"
+            }
+          },
+          {
+            "role": "user",
+            "content": "<sha256:5a0e0158e403…, 3940 chars> {\"trusted_review\":{\"kind\":\"execution\",\"policy\":\"Return the s…"
+          }
+        ]
+      },
+      "include": [
+        "reasoning.encrypted_content"
+      ],
+      "tools": "c569e08a0dcef1226aeb1654878ccfbda80e7bd479fb2f65566945487da3bd49",
+      "stream": false,
+      "text": "fdc155616391aed2d1443ddb779c7b3969b7d60e1f3e42485884977af1f8b179",
+      "store": false,
+      "prompt_cache_options": {
+        "mode": "implicit",
+        "comparison_response_id": "resp_5"
+      },
+      "reasoning": {
+        "effort": "medium",
+        "context": "all_turns",
+        "summary": "auto"
+      },
+      "parallel_tool_calls": true
+    }
+  }
+]

@@ -16,8 +16,8 @@ import { lunaModel, solModel } from "../../src/models/models.js";
  * these change, in `normalized`:
  * - Headers that vary by machine, SDK version or attempt are dropped: user-agent and every
  *   x-stainless-* header (OS, architecture, runtime, package version, retry count, timeout).
- * - The tool schemas, `tools`, thousands of lines the same on every request, are kept as their
- *   SHA-256.
+ * - The tool and output schemas, `tools` and `text`, thousands of lines the same on every
+ *   request, are kept as their SHA-256.
  * - An `input` that starts with every item of the request before it, as serialized, is kept as
  *   `{ carriedOver, added }`: that request's item count and the items after them.
  * - A string over 300 characters is kept as `<sha256:` its digest's first 12 hex digits, its
@@ -31,6 +31,8 @@ export type Body = Record<string, unknown>;
 export interface Reply {
   readonly output?: readonly unknown[];
   readonly usage?: Record<string, unknown>;
+  /** An error status the provider refuses the request with instead. */
+  readonly status?: number;
 }
 
 interface Recorded {
@@ -63,7 +65,7 @@ const normalized = (body: Body, previous: readonly string[]) => {
     Object.fromEntries(
       Object.entries(body).map(([key, value]) => [
         key,
-        key === "tools"
+        key === "tools" || key === "text"
           ? sha256(JSON.stringify(value))
           : key === "input" && carried
             ? { carriedOver: previous.length, added: input.slice(previous.length) }
@@ -104,7 +106,14 @@ export const goldenProvider = (reply: (body: Body) => Reply) => {
       previous = Array.isArray(body["input"])
         ? body["input"].map((item: unknown) => JSON.stringify(item))
         : [];
-      const { output = [], usage } = reply(body);
+      const { output = [], usage, status } = reply(body);
+      if (status !== undefined)
+        return new Response(
+          JSON.stringify({
+            error: { message: "Synthetic refusal", type: "invalid_request_error" },
+          }),
+          { status, headers: { "content-type": "application/json" } },
+        );
       return new Response(
         JSON.stringify({
           id: `resp_${requests.length}`,
